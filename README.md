@@ -1,1 +1,1 @@
-# STEP (SHAO TransiEnt Pipeline)
+# STEP (SHAO TransiEnts Pipeline)
