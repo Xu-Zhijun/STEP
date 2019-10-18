@@ -21,9 +21,11 @@ PlotBoxcar  # data smooth
 
 PlotTime    # offset sec for each pulses
 
-Plotrange   # (no function yet)
+Plotrange   # scale the plot size
 
 PlotDM      # set DM for pulses
+
+PlotPersent # set the persent number you want to plot, like 0.05 only plot top 5% of the data.
 
 AVERAGE     # Downsample
 
