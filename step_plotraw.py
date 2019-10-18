@@ -9,11 +9,11 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 def frbplot(filen, ststart):
     #### Read Config File ####
-    (_, NSMAX, _, _, _, RFITHR, IGNORE, winsize, choff_low, choff_high, plotbc,
+    (_, NSMAX, _, _, _, tthresh, IGNORE, winsize, choff_low, choff_high, plotpes, plotbc,
         plotime, plotrange, plotDM, average, freqavg) = step_lib_comm.readini("frbcfg.ini")
     choff_high = choff_high//freqavg
     choff_low = choff_low//freqavg
-
+    # print(winsize)
     #### READ HEADER ####
     header, headsize = readfil.read_header(filen)
     _, rst_filen = os.path.split(filen)
@@ -87,7 +87,9 @@ def frbplot(filen, ststart):
         data_raw = data_raw[:, ::-1]
 
     #### Cleanning ####
-    data_rfi = data_raw.copy()[:, choff_high: totalch-choff_low]
+    data_rfi = step_lib_comm.cleanning(data_raw, tthresh, totalch, choff_low ,choff_high, 
+                numblock, winsize, totalsm)
+    # data_rfi = data_raw.copy()[:, choff_high: totalch-choff_low]
 
     #### Dedispersion ####
     data_des = np.zeros((smaple, totalch-choff_low-choff_high))
@@ -95,11 +97,8 @@ def frbplot(filen, ststart):
         data_des[:, i] = np.roll(data_rfi.copy()[:, i], int(-delay[i]))
 
     #### SNR Detecting ####
-    tmp_des = np.sort(data_des.copy().mean(axis= 1).reshape(numblock, winsize), axis=1)
-    med = tmp_des[:, winsize//2].reshape(numblock, 1)
-    rms = np.sort(np.abs(tmp_des - med))[:, winsize//2] #1.4826*
-    # print(rms)
-    # exit()
+    med, rms = step_lib_comm.mad(data_des, numblock, winsize)
+
     #### Smoothing ####
     plot_rfi = step_lib_comm.convolve(data_rfi, int(plotbc))
     plot_des = step_lib_comm.convolve(data_des, int(plotbc))
@@ -108,37 +107,40 @@ def frbplot(filen, ststart):
     #### Plot PDF File ####
     with PdfPages(rst_filen+'.'+str(header['ibeam'])+'.pdf') as pdf:
         # Calc size of plot #
-        smpmax = int(delay[-1])
+        smpmax = int(delay[-1]*plotrange)
         if smpmax < 250:
             smpmax = 250
         else:
             smpmax = smpmax//2*2
-
-        for smnum in maxsm:
-            winsel = int(smnum / winsize)
-            if smnum + smpmax//2*3 > smaple:
-                xlim = smaple - smpmax*2 #- maxbc
+        
+        for i in range(len(plotime)):
+            if maxsm[i] > smaple:
+                print("PlotTime =", plotime[i], "exceeded the maximum time of the file", smaple*header['tsamp'])
+                continue
+            winsel = int(maxsm[i] / winsize)
+            if maxsm[i] + smpmax//2*3 > smaple:
+                xlim = smaple - smpmax*2
                 xmax = smaple
-            elif smnum - smpmax//2  < 0: #- maxbc
+            elif maxsm[i] - smpmax//2  < 0:
                 xlim = 0
-                xmax = smpmax*2 # + maxbc
+                xmax = smpmax*2
             else:
-                xlim = smnum - smpmax//2 # - maxbc
-                xmax = smnum + smpmax//2*3
+                xlim = maxsm[i] - smpmax//2
+                xmax = maxsm[i] + smpmax//2*3
                 
             if maxbc == 1:
-                maxsigma = (plot_des.copy().mean(axis=1)[int(smnum)] - med[winsel]*maxbc)/rms[winsel]
+                maxsigma = (plot_des.copy().mean(axis=1)[int(maxsm[i])] - med[winsel]*maxbc)/rms[winsel]
             else:
-                maxsigma = (plot_des.copy().mean(axis=1)[int(smnum)] - med[winsel]*maxbc)/(rms[winsel]*np.sqrt(maxbc))
+                maxsigma = (plot_des.copy().mean(axis=1)[int(maxsm[i])] - med[winsel]*maxbc)/(rms[winsel]*np.sqrt(maxbc))
 
             # Plot Raw Dedispersion #
             splt.plotdmraw(plot_rfi[int(xlim): int(xmax),:], plot_des[int(xlim): int(xmax),:], 
-                            smnum, plotDM, rst_filen, average, freqavg, med[winsel], rms[winsel],
+                            maxsm[i], plotDM, rst_filen, average, freqavg, med[winsel], rms[winsel],
                             nchan-choff_low-choff_high, smaple, smpmax, header, totalsm, 
-                            delay, maxsigma, maxbc, choff_low, choff_high, pdf)
+                            delay, maxsigma, maxbc, choff_low, choff_high, pdf, plotpes)
         # Plot Raw and RRI data #
-        splt.plotraw(data_raw[:, ::-1], data_rfi[:, ::-1], smaple,
-                    rst_filen, average, freqavg, nchan, header, totalsm, choff_low, choff_high, pdf)
+        splt.plotraw(data_raw[:, ::-1], data_rfi[:, ::-1], smaple, rst_filen, average, freqavg, 
+                    nchan, header, totalsm, choff_low, choff_high, pdf)
     data_des = []
 
 if __name__ == "__main__":

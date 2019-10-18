@@ -3,6 +3,7 @@ import os
 import sys
 import time
 import readfil
+import numpy as np
 
 def readplotini(inifile):
     FILENAME = []
@@ -15,7 +16,7 @@ def readplotini(inifile):
         if len(all_lines[i].split()) == 0:
             continue
         #### Skip # Line ####
-        elif "#" == all_lines[i].split()[0]:
+        elif "#" in all_lines[i].split()[0]:
             continue
         elif 'PlotReady' in all_lines[i]:
             PlotReady = int(all_lines[i].split()[2]) 
@@ -43,6 +44,7 @@ def readini(inifile):
     LODM = 0.0
     HIDM = 1.0
     DDM = 0.1
+    PlotPersent = 1.0
     with open(inifile,'r') as fd:
         all_lines = fd.readlines()
     for i in range(len(all_lines)):
@@ -50,7 +52,7 @@ def readini(inifile):
         if len(all_lines[i].split()) == 0:
             continue
         #### Skip # Line ####
-        elif "#" == all_lines[i].split()[0]:
+        elif "#" in all_lines[i].split()[0]:
             continue
         elif 'THRESH' in all_lines[i]:
             THRESH = float(all_lines[i].split()[2])
@@ -82,14 +84,22 @@ def readini(inifile):
         elif 'Plotrange' in all_lines[i]:
             Plotrange = float(all_lines[i].split()[2]) 
         elif 'PlotDM' in all_lines[i]:
-            PlotDM = float(all_lines[i].split()[2]) 
+            PlotDM = float(all_lines[i].split()[2])  
+        elif 'PlotPersent' in all_lines[i]:
+            PlotPersent = float(all_lines[i].split()[2]) 
+            if PlotPersent <= 0:
+                print("PlotPersent can't <= 0")
+                exit()
+            elif PlotPersent > 1:
+                print("PlotPersent can't > 1")
+                exit()
         elif 'PlotBoxcar' in all_lines[i]:
             PlotBoxcar = float(all_lines[i].split()[2])       
     if (FREQAVG == 0 or AVERAGE == 0) :
         print("AVERAGE or FREQAVG can't be Zero !!!")
         exit()
     return (THRESH, NSMAX, LODM, HIDM, DDM, RFITHR, IGNORE, WINDOWSIZE, CHOFF_LOW, 
-            CHOFF_HIGH, PlotBoxcar, PlotTime, Plotrange, PlotDM, AVERAGE, FREQAVG)
+            CHOFF_HIGH, PlotPersent, PlotBoxcar, PlotTime, Plotrange, PlotDM, AVERAGE, FREQAVG)
 
 
 def convolve(dn, boxcar):
@@ -97,6 +107,35 @@ def convolve(dn, boxcar):
     for i in range(1, boxcar):
         conv[i:] += dn[:-i]
     return conv
+
+def mad(din, nbl, wsize):
+    tmp_des = np.sort(din.copy().mean(axis= 1).reshape(nbl, wsize), axis=1)
+    med = tmp_des[:, wsize//2].reshape(nbl, 1)
+    rms = np.sort(np.abs(tmp_des - med))[:, wsize//2] #1.4826*
+    # print(rms)
+    # exit()
+    return med, rms
+
+def cleanning(din, tthresh, totalch, choff_low, choff_high, nbl, wsize, sample):
+    #### Remove RFI in time ####
+    nch = totalch-choff_low-choff_high
+    data_rfi = din.copy()[:, choff_high: totalch-choff_low]
+    med, rms = mad(data_rfi, nbl, wsize)
+    sigma = ((data_rfi.copy().mean(axis = 1).reshape(nbl, wsize) - med
+                )/rms.reshape(nbl, 1)).reshape(-1)
+    # data_rfi[np.where(sigma > tthresh)] = np.random.chisquare(wsize, 
+    #                     nch)/wsize*np.sqrt((med**2).mean())    
+    data_rfi[np.where(sigma > tthresh)] =  data_rfi.copy().mean(axis=0)
+    
+    #### Remove RFI in frequency ####
+    tmp_frq = np.sort(data_rfi.copy().mean(axis= 0), axis=0)  
+    med_frq = tmp_frq[nch//2]
+    rms_frq = np.sort(np.abs(tmp_frq - med_frq))[nch//2]
+    sigma_frq = ((data_rfi.copy().mean(axis = 0) - med_frq)/rms_frq).reshape(-1)
+    # data_rfi.transpose()[np.where(sigma_frq > tthresh)] = np.random.chisquare(nch, 
+    #                     sample)/nch*np.sqrt((med_frq**2).mean())
+    data_rfi.transpose()[np.where(sigma_frq > tthresh)] = data_rfi.copy().mean(axis=1)
+    return data_rfi
 
 # def disbar(max, dn):
 #     jd = '\r %2d%% [%s%s]'

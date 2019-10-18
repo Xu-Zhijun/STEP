@@ -16,7 +16,7 @@ def plotwinx(axes, totalch, fn):
     return ax
 
 def plotdmraw(finn, dess, pltime, pldm, filname, avg, freqavg, med, rms, totalch, smap, 
-            smpmax, header, totalsm, delay, sigma, maxbc, choff_low, choff_high, pdf):
+            smpmax, header, totalsm, delay, sigma, maxbc, choff_low, choff_high, pdf, plotpes):
     viewdw = smpmax//4*2 
     #### Read Para ####
     if header['foff'] < 0:
@@ -103,6 +103,8 @@ def plotdmraw(finn, dess, pltime, pldm, filname, avg, freqavg, med, rms, totalch
     axes[2,0].set_xlabel("Time (s)", color='w')
     axes[2,0].tick_params(colors='w')
     axes[2,0].set_xticks(xstick) 
+    re1.set_clim(vmin=np.sort(fn).reshape(-1)[int(fn.size*(1-plotpes))], vmax= np.max(fn))
+    re2.set_clim(vmin=np.sort(fn2).reshape(-1)[int(fn2.size*(1-plotpes))], vmax= np.max(fn2))
     #### Plot Raw Flux ####
     plotwinx(axes[2,1], totalch, fn2)
     axes[2,1].set_xlabel("Flux", color='w')
@@ -194,7 +196,7 @@ def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm
     #### Plot Result ####
     re1 = axes[2,0].imshow(np.transpose(fn), aspect = 'auto', origin = 'lower',
             extent = [0, smaples*plotavg*avg*smpt*1e-6, ymin, ymax],
-            cmap = 'magma')  # viridis, magma, Blues
+            cmap = 'gray')  # viridis, magma, Blues
     axes[2,0].set_ylabel("Frequency (MHz)", color='w')
     axes[2,0].set_xlabel("Time (s)", color='w')
     axes[2,0].tick_params(colors='w')
