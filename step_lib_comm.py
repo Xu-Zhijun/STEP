@@ -3,10 +3,12 @@ import os
 import sys
 import time
 import readfil
+import astropy.io.fits as pyfits
 import numpy as np
 
 def readplotini(inifile):
     FILENAME = []
+    FITSFILE = []
     PlotReady = 0
     PLOTFILE = []
     with open(inifile,'r') as fd:
@@ -27,6 +29,8 @@ def readplotini(inifile):
     for root, _, files in os.walk(SearchPath):
         for fil in files:
             if fil.endswith(".fil"):
+                FILENAME.append(os.path.join(root, fil))
+            elif fil.endswith(".fits"):
                 FILENAME.append(os.path.join(root, fil))
     return PlotReady, FILENAME, PLOTFILE
 
@@ -101,19 +105,17 @@ def readini(inifile):
     return (THRESH, NSMAX, LODM, HIDM, DDM, RFITHR, IGNORE, WINDOWSIZE, CHOFF_LOW, 
             CHOFF_HIGH, PlotPersent, PlotBoxcar, PlotTime, Plotrange, PlotDM, AVERAGE, FREQAVG)
 
-
 def convolve(dn, boxcar):
     conv = dn.copy()
     for i in range(1, boxcar):
-        conv[i:] += dn[:-i]
+        # conv[i:] += dn[:-i]
+        conv += np.roll(dn, i)
     return conv
 
 def mad(din, nbl, wsize):
     tmp_des = np.sort(din.copy().mean(axis= 1).reshape(nbl, wsize), axis=1)
     med = tmp_des[:, wsize//2].reshape(nbl, 1)
     rms = np.sort(np.abs(tmp_des - med))[:, wsize//2] #1.4826*
-    # print(rms)
-    # exit()
     return med, rms
 
 def cleanning(din, tthresh, totalch, choff_low, choff_high, nbl, wsize, sample):
@@ -124,9 +126,9 @@ def cleanning(din, tthresh, totalch, choff_low, choff_high, nbl, wsize, sample):
     sigma = ((data_rfi.copy().mean(axis = 1).reshape(nbl, wsize) - med
                 )/rms.reshape(nbl, 1)).reshape(-1)
     # data_rfi[np.where(sigma > tthresh)] = np.random.chisquare(wsize, 
-    #                     nch)/wsize*np.sqrt((med**2).mean())    
+    #                     nch)/wsize*np.sqrt((med**2).mean())
     data_rfi[np.where(sigma > tthresh)] =  data_rfi.copy().mean(axis=0)
-    
+
     #### Remove RFI in frequency ####
     tmp_frq = np.sort(data_rfi.copy().mean(axis= 0), axis=0)  
     med_frq = tmp_frq[nch//2]
@@ -143,3 +145,46 @@ def cleanning(din, tthresh, totalch, choff_low, choff_high, nbl, wsize, sample):
 #     b = ' '* ((max-dn)*100//max)
 #     c = (dn/max)*100+1
 #     print(jd % (c,a,b), end="", flush=True)
+
+def read_psrfits(psrfits_file, ststart):
+    """
+    Modified from presto prsfit.py
+    """
+    header = {'ibeam':0, 'nbeams':1,}
+    print("Reading...", psrfits_file, time.time() - ststart)
+    sys.stdout.flush()
+    with open (psrfits_file,'rb') as fn:
+        psr01 = pyfits.open(fn, mode='readonly', memmap=True)
+        fits_header = psr01['PRIMARY'].header
+        sub_header = psr01['SUBINT'].header
+        header['telescope_id'] = fits_header['TELESCOP']
+        header['machine_id'] = fits_header['BACKEND']
+        header['source_name'] = fits_header['SRC_NAME']
+        header['src_raj'] = float(fits_header['RA'].replace(':',''))
+        header['src_dej'] = float(fits_header['DEC'].replace(':',''))
+        header['tstart'] = (fits_header['STT_IMJD'] + fits_header['STT_SMJD']/86400.0 + 
+                            fits_header['STT_OFFS']/86400.0)
+        header['fch1'] = (fits_header['OBSFREQ'] + np.abs(fits_header['OBSBW'])/2.0 - 
+                            np.abs(sub_header['CHAN_BW'])/2.0)
+        header['foff'] = -1.0*np.abs(sub_header['CHAN_BW'])
+        header['nchans'] = sub_header['NCHAN']
+        header['nbits'] =  sub_header['NBITS']
+        header['tsamp'] = sub_header['TBIN']
+        header['nifs'] = sub_header['NPOL']
+        header['totalsm'] = sub_header['NSBLK']*sub_header['NAXIS2']
+        nsampsub = sub_header['NSBLK']
+        nsubints = sub_header['NAXIS2'] 
+        numpolns = sub_header['NPOL']
+        polnorder = sub_header['POL_TYPE']
+        data = np.zeros((header['totalsm'], header['nchans']), dtype=np.float32)
+        for i in range(nsubints):
+            psrdata = psr01['SUBINT'].data[i]['DATA']
+            shp = psrdata.squeeze().shape
+            if (len(shp)==3 and shp[1]==numpolns and polnorder == 'IQUV'):
+                # print("Polarization is IQUV, just using Stokes I")
+                data[i*nsampsub: (i+1)*nsampsub]= psrdata[:,0,:].squeeze()
+            else:
+                data[i*nsampsub: (i+1)*nsampsub] = np.asarray(psrdata.squeeze())
+        # print(header, psrdata.shape, nsubints, nsampsub, shp, polnorder, data.shape)
+    # print(data.shape, psrdata.shape)
+    return header, data[:, ::-1]

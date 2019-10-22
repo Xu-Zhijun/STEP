@@ -16,7 +16,8 @@ def plotwinx(axes, totalch, fn):
     return ax
 
 def plotdmraw(finn, dess, pltime, pldm, filname, avg, freqavg, med, rms, totalch, smap, 
-            smpmax, header, totalsm, delay, sigma, maxbc, choff_low, choff_high, pdf, plotpes):
+            smpmax, header, totalsm, delay, sigma, maxbc, choff_low, choff_high, pdf, 
+            plotpes, ispsrfits):
     viewdw = smpmax//4*2 
     #### Read Para ####
     if header['foff'] < 0:
@@ -29,14 +30,18 @@ def plotdmraw(finn, dess, pltime, pldm, filname, avg, freqavg, med, rms, totalch
     freqctr = (ymax+ymin)/2
     timeoff = pltime*header['tsamp']*avg
     # print(timeoff, pltime)
-    if header['telescope_id'] in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 20, 21, 64, 65]:
-        telescope_id = readfil.ids_to_telescope[header['telescope_id']]
+    if ispsrfits :
+        telescope_id = header['telescope_id']
+        machine_id = header['machine_id']
     else:
-        telescope_id = 'Unknow'
-    if header['machine_id'] in [0, 1, 2, 3, 4, 5, 6, 7, 11, 12, 20, 64, 65]:
-        machine_id = readfil.ids_to_machine[header['machine_id']]
-    else:
-        machine_id = 'Unknow'
+        if header['telescope_id'] in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 20, 21, 64, 65]:
+            telescope_id = readfil.ids_to_telescope[header['telescope_id']]
+        else:
+            telescope_id = 'Unknow'
+        if header['machine_id'] in [0, 1, 2, 3, 4, 5, 6, 7, 11, 12, 20, 64, 65]:
+            machine_id = readfil.ids_to_machine[header['machine_id']]
+        else:
+            machine_id = 'Unknow'
     #### Clac MaxSNR ####
     snr = (dess[:smpmax].copy().mean(axis=1)-med*maxbc)/(rms*np.sqrt(maxbc))
     maxsigma = np.max(snr)
@@ -49,6 +54,7 @@ def plotdmraw(finn, dess, pltime, pldm, filname, avg, freqavg, med, rms, totalch
     xmax = float(pltime+smpmax//4*2)*smpt*1e-6*avg
     xstick = [xlim+(xmax-xlim)/4, xlim+(xmax-xlim)/2, xlim+(xmax-xlim)*3/4]
     #### Plot ####
+    # print(fn.shape, viewdw, smpmax, int(smpmax//2-viewdw), int(smpmax//2+viewdw))
     fig, axes = plt.subplots(3, 2, gridspec_kw={'height_ratios':[1,3,3], 'width_ratios':[10, 1]})
     fig.set_facecolor('k')
     fig.set_size_inches(15, 10)
@@ -58,9 +64,9 @@ def plotdmraw(finn, dess, pltime, pldm, filname, avg, freqavg, med, rms, totalch
     Average:%3d %sFreqAvg:%3d  %sBOXCAR:%3d %sBeam: %3d/%3d\n\n\n\n\n"%(filname.ljust(25,' '),  
         timeoff, ' '.ljust(3,' '), pldm, avg, ' '.ljust(3,' '), freqavg, ' '.ljust(3,' '), maxbc,
         ' '.ljust(3,' '), header['ibeam'], header['nbeams']), color='1') 
-    fig.text(0.2, 0.94, "Source: %s"%header['source_name'], color='1', size=12)
-    fig.text(0.2, 0.92, "Telscope: %s"%telescope_id, color='1', size=12)
-    fig.text(0.2, 0.90, "Instrument: %s"%machine_id, color='1', size=12)
+    fig.text(0.12, 0.94, "Source: %s"%header['source_name'], color='1', size=12)
+    fig.text(0.12, 0.92, "Telscope: %s"%telescope_id, color='1', size=12)
+    fig.text(0.12, 0.90, "Instrument: %s"%machine_id, color='1', size=12)
     fig.text(0.4, 0.94, "RA (J2000): %s"%str(header['src_raj']), color='1', size=12)
     fig.text(0.4, 0.92, "DEC (J2000): %s"%str(header['src_dej']), color='1', size=12)
     fig.text(0.4, 0.90, "MJD(bary): %s"%str(header['tstart']), color='1', size=12)    
@@ -121,7 +127,8 @@ def plotdmraw(finn, dess, pltime, pldm, filname, avg, freqavg, med, rms, totalch
     pdf.savefig(facecolor='k')
     plt.close()
 
-def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm, choff_low, choff_high, pdf):
+def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm, choff_low, 
+            choff_high, pdf, plotpes, ispsrfits, pldm, plbc):
     #### Resize data ####    
     if smaples > 1000:
         plotavg = smaples//1000
@@ -144,28 +151,36 @@ def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm
         ymax2 = header['fch1'] + header['foff']*header['nchans'] - header['foff']*choff_high*freqavg
         ymin2 = header['fch1'] + header['foff']*choff_low*freqavg   
     smpt = header['tsamp']*1e6
-    freqctr = (ymax+ymin)/2
-    if header['telescope_id'] in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 20, 21, 64, 65]:
-        telescope_id = readfil.ids_to_telescope[header['telescope_id']]
+    freqctr = (ymax+ymin)/2    
+    if ispsrfits:
+        telescope_id = header['telescope_id']
+        machine_id = header['machine_id']
     else:
-        telescope_id = 'Unknow'
-    if header['machine_id'] in [0, 1, 2, 3, 4, 5, 6, 7, 11, 12, 20, 64, 65]:
-        machine_id = readfil.ids_to_machine[header['machine_id']]
-    else:
-        machine_id = 'Unknow'
+        if header['telescope_id'] in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 20, 21, 64, 65]:
+            telescope_id = readfil.ids_to_telescope[header['telescope_id']]
+        else:
+            telescope_id = 'Unknow'
+        if header['machine_id'] in [0, 1, 2, 3, 4, 5, 6, 7, 11, 12, 20, 64, 65]:
+            machine_id = readfil.ids_to_machine[header['machine_id']]
+        else:
+            machine_id = 'Unknow'
     #### Plot ####
     fig, axes = plt.subplots(3, 2, gridspec_kw={'height_ratios':[1,3,3], 'width_ratios':[10, 1]})
     fig.set_facecolor('k')
     fig.set_size_inches(15, 10)
     plt.subplots_adjust(wspace= 0.01, hspace= 0.02, left=0.06, bottom=0.07, right=0.95, top=0.88)
     #### Plot TEXT ####
-    fig.suptitle("SHAO_FRB results for:  %s\
-    Average:%3d %sFreqAvg:%3d %sBeam: %3d/%3d\n\n\n\n\n"%(filname.ljust(25,' '),
-        avg*plotavg, ' '.ljust(3,' '), freqavg, 
+    # fig.suptitle("SHAO_FRB results for:  %s\
+    # Average:%3d %sFreqAvg:%3d %sBeam: %3d/%3d\n\n\n\n\n"%(filname.ljust(25,' '),
+    #     avg*plotavg, ' '.ljust(3,' '), freqavg, 
+    #     ' '.ljust(3,' '), header['ibeam'], header['nbeams']), color='1') 
+    fig.suptitle("SHAO_FRB results for:  %s %sDM: %4.4f \
+    Average:%3d %sFreqAvg:%3d  %sBOXCAR:%3d %sBeam: %3d/%3d\n\n\n\n\n"%(filname.ljust(25,' '),  
+        ' '.ljust(5,' '), pldm, avg, ' '.ljust(3,' '), freqavg, ' '.ljust(3,' '), plbc, 
         ' '.ljust(3,' '), header['ibeam'], header['nbeams']), color='1') 
-    fig.text(0.2, 0.94, "Source: %s"%header['source_name'], color='1', size=12)
-    fig.text(0.2, 0.92, "Telscope: %s"%telescope_id, color='1', size=12)
-    fig.text(0.2, 0.90, "Instrument: %s"%machine_id, color='1', size=12)
+    fig.text(0.15, 0.94, "Source: %s"%header['source_name'], color='1', size=12)
+    fig.text(0.15, 0.92, "Telscope: %s"%telescope_id, color='1', size=12)
+    fig.text(0.15, 0.90, "Instrument: %s"%machine_id, color='1', size=12)
     fig.text(0.4, 0.94, "RA (J2000): %s"%str(header['src_raj']), color='1', size=12)
     fig.text(0.4, 0.92, "DEC (J2000): %s"%str(header['src_dej']), color='1', size=12)
     fig.text(0.4, 0.90, "MJD(bary): %s"%str(header['tstart']), color='1', size=12)    
@@ -185,8 +200,8 @@ def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm
                 axes[yl, xl].spines['bottom'].set_color('w')
     axes[0,1].set_facecolor('k')
     axes[1,1].set_facecolor('k')
-    axes[0,0].set_xticks([])    
-    axes[1,0].set_xticks([])     
+    axes[0,0].set_xticks(np.arange(0, 1001, 100))    
+    axes[1,0].set_xticks(np.arange(0, 1001, 100))     
     axes[2,0].set_xticks(np.arange(0, 1001, 100)*plotavg*avg*smpt*1e-6) 
     #### Plot Flux ####
     axes[0,0].plot(np.arange(0, smaples), (fn2.mean(axis=1)), color='w', linewidth=1)
@@ -196,7 +211,7 @@ def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm
     #### Plot Result ####
     re1 = axes[2,0].imshow(np.transpose(fn), aspect = 'auto', origin = 'lower',
             extent = [0, smaples*plotavg*avg*smpt*1e-6, ymin, ymax],
-            cmap = 'gray')  # viridis, magma, Blues
+            cmap = 'Blues')  # viridis, magma, Blues
     axes[2,0].set_ylabel("Frequency (MHz)", color='w')
     axes[2,0].set_xlabel("Time (s)", color='w')
     axes[2,0].tick_params(colors='w')
@@ -206,6 +221,8 @@ def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm
             cmap = 'magma') # viridis, magma, Blues
     axes[1,0].set_ylabel("Frequency (MHz)", color='w')
     axes[1,0].tick_params(colors='w')
+    re1.set_clim(vmin=np.sort(fn).reshape(-1)[int(fn.size*(1-plotpes))], vmax= np.max(fn))
+    re2.set_clim(vmin=np.sort(fn2).reshape(-1)[int(fn2.size*(1-plotpes))], vmax= np.max(fn2))
     #### Plot Raw Flux ####
     plotwinx(axes[2,1], totalch, fn)
     axes[2,1].set_xlabel("Flux", color='w')
