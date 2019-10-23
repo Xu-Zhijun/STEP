@@ -109,7 +109,7 @@ def convolve(dn, boxcar):
     conv = dn.copy()
     for i in range(1, boxcar):
         # conv[i:] += dn[:-i]
-        conv += np.roll(dn, i)
+        conv += np.roll(dn, i, axis= 0)
     return conv
 
 def mad(din, nbl, wsize):
