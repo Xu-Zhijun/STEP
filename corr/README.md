@@ -6,3 +6,7 @@ numpy
 matplotlib
 
 cupy
+
+# Usage
+
+Correlate MWA .sub file
