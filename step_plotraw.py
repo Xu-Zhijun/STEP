@@ -111,6 +111,7 @@ def frbplot(filen, ststart):
     med, rms = step_lib_comm.mad(data_des, numblock, winsize)
 
     #### Smoothing ####
+    plot_raw = step_lib_comm.convolve(data_raw, int(plotbc))
     plot_rfi = step_lib_comm.convolve(data_rfi, int(plotbc))
     plot_des = step_lib_comm.convolve(data_des, int(plotbc))
 
@@ -156,7 +157,7 @@ def frbplot(filen, ststart):
                             nchan-choff_low-choff_high, smaple, smpmax, header, totalsm, delay, 
                             maxsigma, maxbc, choff_low, choff_high, pdf, plotpes, ispsrfits)
         # Plot Raw and RRI data #
-        splt.plotraw(data_raw[:, ::-1], plot_des.copy()[:, ::-1], smaple, rst_filen, average, freqavg, 
+        splt.plotraw(plot_raw[:, ::-1], plot_des.copy()[:, ::-1], smaple, rst_filen, average, freqavg, 
                 nchan, header, totalsm, choff_low, choff_high, pdf, plotpes, ispsrfits, plotDM, plotbc)
     data_des = []
 

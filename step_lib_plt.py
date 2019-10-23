@@ -2,7 +2,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import readfil
-
+from matplotlib.colors import  ListedColormap
+from matplotlib import cm
 def plotwinx(axes, totalch, fn):
     ax = axes.twinx()
     ax.set_ylabel("Channel", color='w')
@@ -129,6 +130,21 @@ def plotdmraw(finn, dess, pltime, pldm, filname, avg, freqavg, med, rms, totalch
 
 def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm, choff_low, 
             choff_high, pdf, plotpes, ispsrfits, pldm, plbc):
+
+    # cdict1 = {'red':  ((0.0, 0.0, 0.0),
+    #                (0.5, 0.0, 0.1),
+    #                (1.0, 1.0, 1.0)),            
+    #             'green': ((0.0, 0.0, 0.0),
+    #                (1.0, 0.0, 0.0)),
+    #             'blue':  ((0.0, 0.0, 1.0),
+    #                (0.5, 0.1, 0.0),
+    #                (1.0, 0.0, 0.0))}
+    # blue_red1 = LinearSegmentedColormap('BlueRed1', cdict1)
+    inferno  = cm.get_cmap('inferno', 256)
+    newcolors = inferno(np.linspace(0, 1, 256))
+    pink = np.array([0.993248, 0.906157, 0.143936, 1])
+    newcolors[-50:, :] = pink
+    newcmp = ListedColormap(newcolors)
     #### Resize data ####    
     if smaples > 1000:
         plotavg = smaples//1000
@@ -211,18 +227,22 @@ def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm
     #### Plot Result ####
     re1 = axes[2,0].imshow(np.transpose(fn), aspect = 'auto', origin = 'lower',
             extent = [0, smaples*plotavg*avg*smpt*1e-6, ymin, ymax],
-            cmap = 'Blues')  # viridis, magma, Blues
+            cmap = 'inferno',  # viridis, magma, Blues
+            interpolation='nearest',
+            vmin=np.sort(fn).reshape(-1)[int(fn.size*(1-plotpes))], vmax= np.max(fn)) 
     axes[2,0].set_ylabel("Frequency (MHz)", color='w')
     axes[2,0].set_xlabel("Time (s)", color='w')
     axes[2,0].tick_params(colors='w')
     #### Plot Raw data ####
     re2 = axes[1,0].imshow(np.transpose(fn2), aspect = 'auto', origin = 'lower',
             extent = [0, smaples, ymin2, ymax2],
-            cmap = 'magma') # viridis, magma, Blues
+            cmap = 'inferno',  # viridis, magma, Blues, 'plasma'
+            interpolation='nearest',
+            vmin=np.sort(fn2).reshape(-1)[int(fn2.size*(1-plotpes))], vmax= np.max(fn2))
     axes[1,0].set_ylabel("Frequency (MHz)", color='w')
     axes[1,0].tick_params(colors='w')
-    re1.set_clim(vmin=np.sort(fn).reshape(-1)[int(fn.size*(1-plotpes))], vmax= np.max(fn))
-    re2.set_clim(vmin=np.sort(fn2).reshape(-1)[int(fn2.size*(1-plotpes))], vmax= np.max(fn2))
+    # re1.set_clim(vmin=np.sort(fn).reshape(-1)[int(fn.size*(1-plotpes))], vmax= np.max(fn))
+    # re2.set_clim(vmin=np.sort(fn2).reshape(-1)[int(fn2.size*(1-plotpes))], vmax= np.max(fn2))
     #### Plot Raw Flux ####
     plotwinx(axes[2,1], totalch, fn)
     axes[2,1].set_xlabel("Flux", color='w')
