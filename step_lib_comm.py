@@ -232,6 +232,45 @@ def read_psrfits(psrfits_file, ststart):
                 data[i*nsampsub: (i+1)*nsampsub]= psrdata[:,0,:].squeeze()
             else:
                 data[i*nsampsub: (i+1)*nsampsub] = np.asarray(psrdata.squeeze())
-        # print(header, psrdata.shape, nsubints, nsampsub, shp, polnorder, data.shape)
-    # print(data.shape, psrdata.shape)
     return header, data[:, ::-1]
+
+def read_file(filen, data_raw, numbits, headsize, countsize, smaple, average, 
+            nchan, freqavg, tstart):
+    if numbits >= 8:    # BITS NUMBER 8/16/32
+        with open(str(filen),'rb') as fn:
+            fn.seek(headsize)
+            if   numbits == 32:
+                fin = np.fromfile(fn, dtype=np.float32, count=countsize)
+            elif numbits == 16:
+                 fin = np.fromfile(fn, dtype=np.uint16, count=countsize)
+            elif numbits == 8:
+                fin = np.fromfile(fn, dtype=np.uint8, count=countsize)
+        data_raw = fin.reshape(smaple, average, nchan, freqavg).mean(axis=(1,3))
+        if fin.size != countsize:
+            print("FILE SIZE ERROR   %s Time:%.2f sec"%(filen, 
+                    (time.time() - tstart)))
+            sys.stdout.flush()
+            exit()
+    else:               # BITS NUMBER 1/2/4
+        numbtch = 8//numbits
+        with open(str(filen),'rb') as fn:
+            fn.seek(headsize)
+            fin = np.fromfile(fn, dtype=np.uint8, count=countsize//numbtch)
+        if fin.size != countsize//numbtch :
+            print("FILE SIZE ERROR   %s Time:%.2f sec"%(filen, 
+                    (time.time() - tstart)))
+            sys.stdout.flush()
+            exit()
+        data_raw = fin.reshape(totalsm, totalch//numbtch, 1).repeat(numbtch, axis=2)            
+        if   numbtch == 2 :
+            for i in range(numbtch):
+                data_raw[:, :, i] >> i*numbits & 0x0f
+        elif numbtch == 4 :
+            for i in range(numbtch):
+                data_raw[:, :, i] >> i*numbits & 0x03
+        elif numbtch == 8 :
+            for i in range(numbtch):
+                data_raw[:, :, i] >> i*numbits & 0x01            
+        data_raw = data_raw.reshape(smaple, average, nchan, freqavg).float(
+                        ).mean(axis=(1,3))
+    return data_raw           

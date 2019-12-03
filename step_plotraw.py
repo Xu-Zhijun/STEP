@@ -12,8 +12,8 @@ import torch
 
 def frbplot(filen, ststart):
     #### Read Config File ####
-    (_, NSMAX, _, _, _, tthresh, IGNORE, winsize, choff_low, choff_high, plotpes, plotbc,
-        plotime, plotrange, plotDM, average, freqavg, useGPU, BlockSize,
+    (_, NSMAX, _, _, _, tthresh, IGNORE, winsize, choff_low, choff_high, plotpes,
+        plotbc, plotime, plotrange, plotDM, average, freqavg, useGPU, BlockSize,
         ) = step_lib_comm.readini("frbcfg.ini")
     choff_high = choff_high//freqavg
     choff_low = choff_low//freqavg
@@ -34,10 +34,10 @@ def frbplot(filen, ststart):
     totalch = header['nchans']
     numbits = header['nbits']
     smptm = header['tsamp']*1e6
-    smaple = totalsm//average
-    numblock = smaple//winsize
+    sample = totalsm//average
+    numblock = sample//winsize
     totalsm = numblock*winsize*average
-    smaple = numblock*winsize
+    sample = numblock*winsize
     nchan = totalch//freqavg
     smptm *= average
     maxbc = plotbc
@@ -47,10 +47,10 @@ def frbplot(filen, ststart):
 
     # Init #
     maxsm = np.zeros(len(plotime))
-    data_raw = np.zeros((smaple, nchan), dtype=np.float32)
-    plot_rfi = np.zeros((smaple, nchan-choff_low-choff_high), dtype=np.float32)
-    plot_des = np.zeros((smaple, nchan-choff_low-choff_high), dtype=np.float32)
-    med = np.zeros((numblock), dtype=np.float32)
+    data_raw = np.zeros((sample, nchan), dtype=np.float32)
+    plot_rfi = np.zeros((sample, nchan-choff_low-choff_high), dtype=np.float32)
+    plot_des = np.zeros((sample, nchan-choff_low-choff_high), dtype=np.float32)
+    med = np.zeros((numblock, 1), dtype=np.float32)
     rms = np.zeros(numblock, dtype=np.float32)
 
     # calc time to samples #
@@ -69,84 +69,60 @@ def frbplot(filen, ststart):
     chfrq = np.arange(higch, lowch, -chbwd*freqavg)
     delay = (4148.741601*plotDM*(chfrq**(-2) - (higch)**(-2))/smptm).round()
 
-    #### Read Filterbank File ####
+    # Read PSRFITS #
     if ispsrfits: # PSRFITS #
-        data_raw = psrdata.reshape(smaple, average, nchan, freqavg).mean(axis=(1,3))
-    elif numbits >= 8:    # BITS NUMBER 8/16/32
-        with open(str(filen),'rb') as fn:
-            fn.seek(headsize)
-            if   numbits == 32:
-                fin = np.fromfile(fn, dtype=np.float32, count=totalsm*totalch)
-            elif numbits == 16:
-                 fin = np.fromfile(fn, dtype=np.uint16, count=totalsm*totalch)
-            elif numbits == 8:
-                fin = np.fromfile(fn, dtype=np.uint8, count=totalsm*totalch)
-        data_raw = fin.reshape(smaple, average, nchan, freqavg).mean(axis=(1,3))
-        if fin.size != totalsm*totalch:
-            print("FILE SIZE ERROR   %s Time:%.2f sec"%(rst_filen, 
-                    (time.time() - tstart)))
-            sys.stdout.flush()
-            exit()
-    else:               # BITS NUMBER 1/2/4
-        numbtch = 8//numbits
-        with open(str(filen),'rb') as fn:
-            fn.seek(headsize)
-            fin = np.fromfile(fn, dtype=np.uint8, count=totalsm*totalch//numbtch)
-        if fin.size != totalsm*totalch//numbtch :
-            print("FILE SIZE ERROR   %s Time:%.2f sec"%(rst_filen, 
-                    (time.time() - tstart)))
-            sys.stdout.flush()
-            exit()
-        data_raw = fin.reshape(totalsm, totalch//numbtch, 1).repeat(numbtch, axis=2)            
-        if   numbtch == 2 :
-            for i in range(numbtch):
-                data_raw[:, :, i] >> i*numbits & 0x0f
-        elif numbtch == 4 :
-            for i in range(numbtch):
-                data_raw[:, :, i] >> i*numbits & 0x03
-        elif numbtch == 8 :
-            for i in range(numbtch):
-                data_raw[:, :, i] >> i*numbits & 0x01            
-        data_raw = data_raw.reshape(smaple, average, nchan, freqavg).float(
-                        ).mean(axis=(1,3))           
-    if header['foff'] > 0:  # Reverse the Data if foff > 0
-        data_raw = data_raw[:, ::-1]
-    print("Read FILE %.2f"%(time.time() - tstart))
-    sys.stdout.flush()
-    # Calc Block #
+        psrdata = psrdata.reshape(sample, average, nchan, freqavg).mean(axis=(1,3))
+
+    # Calc Block Number #
     Blockwz = BlockSize*1024*1024//(nchan*4*winsize)
     Blocksm = Blockwz*winsize
     print("Blocksm =", Blocksm, "Totalsm =", totalsm, "WindowSize =", winsize)
-    if Blocksm > smaple :
-        Blocksm = smaple
+    if Blocksm > sample :
+        Blocksm = sample
         BlockNum = 1
     else:
-        BlockNum = math.ceil(smaple/Blocksm)
-    print("Blocksm =", Blocksm, BlockNum, (BlockNum*Blocksm-smaple)/winsize, Blocksm*header['tsamp'])    
+        BlockNum = math.ceil(sample/Blocksm)
+    print("Blocksm =", Blocksm, BlockNum, (BlockNum*Blocksm-sample)/winsize, Blocksm*header['tsamp'])    
     sys.stdout.flush()
+
+    #### Main loop ####
     for bnum in range(BlockNum):
-        if (bnum+1)*Blocksm + int(delay[-1])> smaple:
-            block_tlsm = smaple - bnum*Blocksm
-            block_sm = smaple - bnum*Blocksm
+        # calc current blocksize #
+        if (bnum+1)*Blocksm + int(delay[-1])> sample:
+            block_tlsm = sample - bnum*Blocksm
+            block_sm = sample - bnum*Blocksm
             block_nb = block_sm//winsize
         else:
             block_tlsm = Blocksm + int(delay[-1])
             block_sm = Blocksm
             block_nb = block_sm//winsize
+        
+        # read file #
+        if ispsrfits: # PSRFITS #
+            data_raw = psrdata[bnum*Blocksm: bnum*Blocksm+block_tlsm]
+        else:
+            data_raw = step_lib_comm.read_file(filen, data_raw, numbits, headsize+bnum*Blocksm*average*totalch, 
+                                block_tlsm*average*totalch, block_tlsm, average, nchan, freqavg, tstart)
+        if header['foff'] > 0:  # Reverse the Data if foff > 0
+            data_raw = data_raw[:, ::-1]
+        print("Read FILE %.2f"%(time.time() - tstart))
+        sys.stdout.flush()
 
+        # GPU or CPU #
         if useGPU == True:
+            # init tensor #
             cuda = torch.device("cuda")
             data_rfi = torch.zeros((block_tlsm, nchan-choff_low-choff_high), dtype=float, device=cuda)
             data_des = torch.zeros((block_tlsm, nchan-choff_low-choff_high), dtype=float, device=cuda)
+
             # Cleanning #
-            data_rfi = step_lib_comm.cleanning_gpu(torch.from_numpy(
-                    data_raw[bnum*Blocksm: bnum*Blocksm+block_tlsm]).cuda(), 
-                    tthresh, nchan, choff_low ,choff_high, block_nb, winsize, smaple)
+            data_rfi = step_lib_comm.cleanning_gpu(torch.from_numpy(data_raw).cuda(), 
+                    tthresh, nchan, choff_low ,choff_high, block_nb, winsize, sample)
             # step_lib_comm.printcuda(cuda)
             print("Clean %.2f"%(time.time() - tstart))
             sys.stdout.flush()
+
             # Dedispersion #
-            data_des = torch.zeros((block_tlsm, nchan-choff_low-choff_high), dtype=float, device=cuda)
             print(data_des.shape, data_rfi.shape, delay[-1], block_tlsm)
             sys.stdout.flush()
             for i in range(nchan- choff_high - choff_low):
@@ -154,16 +130,21 @@ def frbplot(filen, ststart):
             # step_lib_comm.printcuda(cuda)
             print("Dedispersion %.2f"%(time.time() - tstart))
             sys.stdout.flush()
+
             # SNR Detecting #
-            med_bl, rms_bl = step_lib_comm.mad_gpu(data_des[: block_sm].detach().clone(), block_nb, winsize)
-            med[bnum*Blockwz: bnum*Blockwz+block_nb] = np.array(med_bl.cpu())
+            med_bl, rms_bl = step_lib_comm.mad_gpu(
+                                    data_des[: block_sm].detach().clone(), block_nb, winsize)
+            med[bnum*Blockwz: bnum*Blockwz+block_nb, :] = np.array(med_bl.cpu())
             rms[bnum*Blockwz: bnum*Blockwz+block_nb] = np.array(rms_bl.cpu())
             # step_lib_comm.printcuda(cuda)
             print("MAD %.2f"%(time.time() - tstart))
             sys.stdout.flush()
+
             # Smoothing #
-            plot_rfi[bnum*Blocksm: bnum*Blocksm+block_tlsm] = np.array(step_lib_comm.convolve_gpu(data_rfi, int(plotbc)).cpu())
-            plot_des[bnum*Blocksm: bnum*Blocksm+block_tlsm] = np.array(step_lib_comm.convolve_gpu(data_des, int(plotbc)).cpu())
+            plot_rfi[bnum*Blocksm: bnum*Blocksm+block_tlsm] = np.array(
+                                    step_lib_comm.convolve_gpu(data_rfi, int(plotbc)).cpu())
+            plot_des[bnum*Blocksm: bnum*Blocksm+block_tlsm] = np.array(
+                                    step_lib_comm.convolve_gpu(data_des, int(plotbc)).cpu())
             # step_lib_comm.printcuda(cuda)
             print("Smoothing %.2f"%(time.time() - tstart))
             sys.stdout.flush()    
@@ -171,19 +152,21 @@ def frbplot(filen, ststart):
             # Cleanning #
             data_rfi = step_lib_comm.cleanning(data_raw, tthresh, nchan, choff_low ,choff_high, 
                         numblock, winsize, totalsm)
-            # data_rfi = data_raw.copy()[:, choff_high: nchan-choff_low]
             print("Clean %.2f"%(time.time() - tstart))
             sys.stdout.flush()
+
             #Dedispersion #
-            data_des = np.zeros((smaple, nchan-choff_low-choff_high))
+            data_des = np.zeros((sample, nchan-choff_low-choff_high))
             for i in range(nchan- choff_high - choff_low):
                 data_des[:, i] = np.roll(data_rfi.copy()[:, i], int(-delay[i]))
             print("Dedispersion %.2f"%(time.time() - tstart))
             sys.stdout.flush()
+
             # SNR Detecting #
             med, rms = step_lib_comm.mad(data_des, numblock, winsize)
             print("MAD %.2f"%(time.time() - tstart))
             sys.stdout.flush()
+
             # Smoothing #
             plot_rfi = step_lib_comm.convolve(data_rfi, int(plotbc))
             plot_des = step_lib_comm.convolve(data_des, int(plotbc))
@@ -201,39 +184,33 @@ def frbplot(filen, ststart):
             smpmax = 500 # smpmax//2*2
         
         for i in range(len(plotime)):
-            if maxsm[i] > smaple:
+            if maxsm[i] > sample:
                 print("PlotTime =", plotime[i], "exceeded the maximum time of the file", 
-                        smaple*header['tsamp']*average)
+                        sample*header['tsamp']*average)
                 sys.stdout.flush()
                 continue
             winsel = int(maxsm[i] / winsize)
-            if smpmax//2*4 > smaple:
+            if smpmax//2*4 > sample:
                 xlim = 0
-                xmax = smaple
-                smpmax = smaple//2
-            elif maxsm[i] + smpmax//2*3 > smaple:
-                xlim = smaple - smpmax*2
-                xmax = smaple
+                xmax = sample
+                smpmax = sample//2
+            elif maxsm[i] + smpmax//2*3 > sample:
+                xlim = sample - smpmax*2
+                xmax = sample
             elif maxsm[i] - smpmax//2  < 0:
                 xlim = 0
                 xmax = smpmax*2
             else:
                 xlim = maxsm[i] - smpmax//2
                 xmax = maxsm[i] + smpmax//2*3
-                
-            # if maxbc == 1:
-            #     maxsigma = (plot_des.copy().mean(axis=1)[int(maxsm[i])] - med[winsel]*maxbc)/rms[winsel]
-            # else:
-            #     maxsigma = (plot_des.copy().mean(axis=1)[int(maxsm[i])] - med[winsel]*maxbc)/(
-            #                 rms[winsel]*np.sqrt(maxbc))
 
             # Plot Raw Dedispersion #
             splt.plotdmraw(plot_rfi[int(xlim+int(delay[-1]//2)): int(xmax+int(delay[-1]//2)),:], plot_des[int(xlim): int(xmax),:], 
                             maxsm[i], plotDM, rst_filen, average, freqavg, med[winsel], rms[winsel],
-                            nchan-choff_low-choff_high, smaple, smpmax, header, totalsm, delay, 
+                            nchan-choff_low-choff_high, sample, smpmax, header, totalsm, delay, 
                             maxbc, choff_low, choff_high, pdf, plotpes, ispsrfits)
         # Plot Raw and RRI data #
-        splt.plotraw(data_raw[:, ::-1], plot_des.copy()[:, ::-1], smaple, rst_filen, average, freqavg, 
+        splt.plotraw(plot_rfi[:, ::-1], plot_des[:, ::-1], sample, rst_filen, average, freqavg, 
                 nchan, header, totalsm, choff_low, choff_high, pdf, plotpes, ispsrfits, plotDM, plotbc)
     print("Save PDF %.2f"%(time.time() - tstart))
     sys.stdout.flush()   

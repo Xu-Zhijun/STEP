@@ -11,4 +11,4 @@
 rm *.pdf 
 module use /home/app/modulefiles
 module load python/cpu-3.6.5
-srun python3 /home/xzj/STEP/step_plotraw.py
+srun python3 step_plotraw.py
