@@ -17,7 +17,7 @@ def plotwinx(axes, totalch, fn):
     return ax
 
 def plotdmraw(finn, dess, pltime, pldm, filname, avg, freqavg, med, rms, totalch, smap, 
-            smpmax, header, totalsm, delay, sigma, maxbc, choff_low, choff_high, pdf, 
+            smpmax, header, totalsm, delay, maxbc, choff_low, choff_high, pdf, 
             plotpes, ispsrfits):
     viewdw = smpmax//4*2 
     #### Read Para ####
@@ -46,13 +46,16 @@ def plotdmraw(finn, dess, pltime, pldm, filname, avg, freqavg, med, rms, totalch
     #### Clac MaxSNR ####
     snr = (dess[:smpmax].copy().mean(axis=1)-med*maxbc)/(rms*np.sqrt(maxbc))
     maxsigma = np.max(snr)
+    sigma = snr[smpmax//2]
     sampleoff = (np.argmax(snr) - smpmax//2)*smpt*1e-6*avg
     # print(smpmax, np.argmax(snr))
     #### SET DATA ####
-    fn = (dess[int(smpmax//2-viewdw): int(smpmax//2+viewdw)])[:, ::-1]
-    fn2 = (finn[int(smpmax//2-viewdw): int(smpmax//2+viewdw)])[:, ::-1]
-    xlim = float(pltime-smpmax//4*2)*smpt*1e-6*avg
-    xmax = float(pltime+smpmax//4*2)*smpt*1e-6*avg
+    fn  = (dess[int(smpmax//2-viewdw): int(smpmax//2+viewdw)])[:, ::-1]
+    fn2 = (finn[int(smpmax//2-viewdw): int(smpmax//2+viewdw)])[:, ::-1]    
+    fn = fn - fn.mean(axis = 0)
+    fn2 = fn2 - fn2.mean(axis = 0)
+    xlim = float(-smpmax//4*2)*smpt*1e-6*avg
+    xmax = float(+smpmax//4*2)*smpt*1e-6*avg
     xstick = [xlim+(xmax-xlim)/4, xlim+(xmax-xlim)/2, xlim+(xmax-xlim)*3/4]
     #### Plot ####
     # print(fn.shape, viewdw, smpmax, int(smpmax//2-viewdw), int(smpmax//2+viewdw))
@@ -155,6 +158,8 @@ def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm
         plotavg = 1
         fn = fin1
         fn2 = fin2
+    fn = fn - fn.mean(axis = 0)
+    fn2 = fn2 - fn2.mean(axis = 0)
     #### Read Para ####
     if header['foff'] < 0:
         ymax = header['fch1']
@@ -165,7 +170,7 @@ def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm
         ymax = header['fch1'] + header['foff']*header['nchans']
         ymin = header['fch1']     
         ymax2 = header['fch1'] + header['foff']*header['nchans'] - header['foff']*choff_high*freqavg
-        ymin2 = header['fch1'] + header['foff']*choff_low*freqavg   
+        ymin2 = header['fch1'] + header['foff']*choff_low*freqavg
     smpt = header['tsamp']*1e6
     freqctr = (ymax+ymin)/2    
     if ispsrfits:
@@ -186,14 +191,10 @@ def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm
     fig.set_size_inches(15, 10)
     plt.subplots_adjust(wspace= 0.01, hspace= 0.02, left=0.06, bottom=0.07, right=0.95, top=0.88)
     #### Plot TEXT ####
-    # fig.suptitle("SHAO_FRB results for:  %s\
-    # Average:%3d %sFreqAvg:%3d %sBeam: %3d/%3d\n\n\n\n\n"%(filname.ljust(25,' '),
-    #     avg*plotavg, ' '.ljust(3,' '), freqavg, 
-    #     ' '.ljust(3,' '), header['ibeam'], header['nbeams']), color='1') 
-    fig.suptitle("SHAO_FRB results for:  %s %sDM: %4.4f \
-    Average:%3d %sFreqAvg:%3d  %sBOXCAR:%3d %sBeam: %3d/%3d\n\n\n\n\n"%(filname.ljust(25,' '),  
-        ' '.ljust(5,' '), pldm, avg, ' '.ljust(3,' '), freqavg, ' '.ljust(3,' '), plbc, 
-        ' '.ljust(3,' '), header['ibeam'], header['nbeams']), color='1') 
+    fig.suptitle("STEP_SNAPSHOT results for:  %s %sDM: %4.4f \
+    Average:%3d %sPlotAvg:%3d %sFreqAvg:%3d  %sBOXCAR:%3d %sBeam: %3d/%3d\n\n\n\n\n"%(filname.ljust(25,' '),
+        ' '.ljust(5,' '), pldm, avg, ' '.ljust(3,' '), plotavg, ' '.ljust(3,' '), freqavg,  
+        ' '.ljust(3,' '), plbc, ' '.ljust(3,' '), header['ibeam'], header['nbeams']), color='1')
     fig.text(0.15, 0.94, "Source: %s"%header['source_name'], color='1', size=12)
     fig.text(0.15, 0.92, "Telscope: %s"%telescope_id, color='1', size=12)
     fig.text(0.15, 0.90, "Instrument: %s"%machine_id, color='1', size=12)
@@ -241,8 +242,6 @@ def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm
             vmin=np.sort(fn2).reshape(-1)[int(fn2.size*(1-plotpes))], vmax= np.max(fn2))
     axes[1,0].set_ylabel("Frequency (MHz)", color='w')
     axes[1,0].tick_params(colors='w')
-    # re1.set_clim(vmin=np.sort(fn).reshape(-1)[int(fn.size*(1-plotpes))], vmax= np.max(fn))
-    # re2.set_clim(vmin=np.sort(fn2).reshape(-1)[int(fn2.size*(1-plotpes))], vmax= np.max(fn2))
     #### Plot Raw Flux ####
     plotwinx(axes[2,1], totalch, fn)
     axes[2,1].set_xlabel("Flux", color='w')

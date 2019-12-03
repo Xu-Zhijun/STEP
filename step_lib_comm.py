@@ -5,6 +5,12 @@ import time
 import readfil
 import astropy.io.fits as pyfits
 import numpy as np
+import torch
+
+def printcuda(cuda):
+    print("GPU Memory Using: ",
+    torch.cuda.memory_allocated(cuda)//(1024*1024), torch.cuda.max_memory_allocated(cuda)//(1024*1024), 
+    torch.cuda.memory_cached(cuda)//(1024*1024), torch.cuda.max_memory_cached(cuda)//(1024*1024))
 
 def readplotini(inifile):
     FILENAME = []
@@ -49,6 +55,8 @@ def readini(inifile):
     HIDM = 1.0
     DDM = 0.1
     PlotPersent = 1.0
+    useGPU = True #False #
+    BlockSize = 1000
     with open(inifile,'r') as fd:
         all_lines = fd.readlines()
     for i in range(len(all_lines)):
@@ -98,45 +106,84 @@ def readini(inifile):
                 print("PlotPersent can't > 1")
                 exit()
         elif 'PlotBoxcar' in all_lines[i]:
-            PlotBoxcar = float(all_lines[i].split()[2])       
+            PlotBoxcar = float(all_lines[i].split()[2])     
+        elif 'BlockSize' in all_lines[i]:
+            BlockSize = int(all_lines[i].split()[2])       
     if (FREQAVG == 0 or AVERAGE == 0) :
         print("AVERAGE or FREQAVG can't be Zero !!!")
         exit()
     return (THRESH, NSMAX, LODM, HIDM, DDM, RFITHR, IGNORE, WINDOWSIZE, CHOFF_LOW, 
-            CHOFF_HIGH, PlotPersent, PlotBoxcar, PlotTime, Plotrange, PlotDM, AVERAGE, FREQAVG)
+            CHOFF_HIGH, PlotPersent, PlotBoxcar, PlotTime, Plotrange, PlotDM, AVERAGE, 
+            FREQAVG, useGPU, BlockSize,)
 
 def convolve(dn, boxcar):
     conv = dn.copy()
     for i in range(1, boxcar):
         # conv[i:] += dn[:-i]
-        conv += np.roll(dn, i, axis= 0)
+        # conv[:i] += dn[-i:]
+        conv += np.roll(dn, i, axis = 0)
+    return conv
+
+def convolve_gpu(dn, boxcar):
+    conv = dn.detach().clone()
+    for i in range(1, boxcar):
+        # conv[i:] += dn[:-i]
+        # conv[:i] += dn[-i:]
+        conv += torch.roll(dn, i, dims = 0)
     return conv
 
 def mad(din, nbl, wsize):
     tmp_des = np.sort(din.copy().mean(axis= 1).reshape(nbl, wsize), axis=1)
     med = tmp_des[:, wsize//2].reshape(nbl, 1)
-    rms = np.sort(np.abs(tmp_des - med))[:, wsize//2] #1.4826*
-    return med, rms
+    rms = np.sort(np.abs(tmp_des - med))[:, wsize//2] #
+    return med, 1.4826*rms
+
+def mad_gpu(din, nbl, wsize):
+    tmp_des, _ = torch.sort(din.mean(dim= 1).view(nbl, wsize), dim=1)
+    # print(tmp_des.shape, wsize//2, nbl)
+    med = tmp_des[:, wsize//2].view(nbl, 1)
+    tmp_des, _ = torch.sort(torch.abs(tmp_des - med))
+    rms = tmp_des[:, wsize//2] #
+    return med, 1.4826*rms
 
 def cleanning(din, tthresh, totalch, choff_low, choff_high, nbl, wsize, sample):
     #### Remove RFI in time ####
     nch = totalch-choff_low-choff_high
     data_rfi = din.copy()[:, choff_high: totalch-choff_low]
-    med, rms = mad(data_rfi, nbl, wsize)
-    sigma = ((data_rfi.copy().mean(axis = 1).reshape(nbl, wsize) - med
-                )/rms.reshape(nbl, 1)).reshape(-1)
-    # data_rfi[np.where(sigma > tthresh)] = np.random.chisquare(wsize, 
-    #                     nch)/wsize*np.sqrt((med**2).mean())
-    data_rfi[np.where(sigma > tthresh)] =  data_rfi.copy().mean(axis=0)
+    # med, rms = mad(data_rfi, nbl, wsize)
+    # sigma = ((data_rfi.copy().mean(axis = 1).reshape(nbl, wsize) - med
+    #             )/rms.reshape(nbl, 1)).reshape(-1)
+    # # data_rfi[np.where(sigma > tthresh)] = np.random.chisquare(wsize, 
+    # #                     nch)/wsize*np.sqrt((med**2).mean())
+    # data_rfi[np.where(sigma > tthresh)] =  data_rfi.copy().mean(axis=0)
 
     #### Remove RFI in frequency ####
-    tmp_frq = np.sort(data_rfi.copy().mean(axis= 0), axis=0)  
-    med_frq = tmp_frq[nch//2]
-    rms_frq = np.sort(np.abs(tmp_frq - med_frq))[nch//2]
-    sigma_frq = ((data_rfi.copy().mean(axis = 0) - med_frq)/rms_frq).reshape(-1)
+    # tmp_frq = np.sort(data_rfi.copy().mean(axis= 0), axis=0)  
+    # med_frq = tmp_frq[nch//2]
+    # rms_frq = np.sort(np.abs(tmp_frq - med_frq))[nch//2]
+    # sigma_frq = ((data_rfi.copy().mean(axis = 0) - med_frq)/rms_frq).reshape(-1)
     # data_rfi.transpose()[np.where(sigma_frq > tthresh)] = np.random.chisquare(nch, 
     #                     sample)/nch*np.sqrt((med_frq**2).mean())
-    data_rfi.transpose()[np.where(sigma_frq > tthresh)] = data_rfi.copy().mean(axis=1)
+    #data_rfi.transpose()[np.where(sigma_frq > tthresh)] = data_rfi.copy().mean(axis=1)
+    return data_rfi
+
+def cleanning_gpu(din, tthresh, totalch, choff_low, choff_high, nbl, wsize, sample):
+    #### Remove RFI in time ####
+    nch = totalch-choff_low-choff_high
+    data_rfi = din[:, choff_high: totalch-choff_low]
+    # data_rfi = data_rfi - data_rfi.mean(dim = 0)
+    # med, rms = mad_gpu(data_rfi.detach().clone(), nbl, wsize)
+    # sigma = ((data_rfi.mean(dim = 1).view(nbl, wsize) - med
+    #             )/rms.view(nbl, 1)).view(-1)
+    # data_rfi[torch.where(sigma > tthresh)] =  data_rfi.mean(dim=0)
+
+    # #### Remove RFI in frequency ####
+    # tmp_frq, _ = torch.sort(data_rfi.mean(dim= 0), dim=0)  
+    # med_frq = tmp_frq[nch//2]
+    # tmp_frq, _ = torch.sort(torch.abs(tmp_frq - med_frq))
+    # rms_frq = tmp_frq[nch//2]
+    # sigma_frq = ((data_rfi.mean(dim = 0) - med_frq)/rms_frq).view(-1)
+    # data_rfi.transpose()[torch.where(sigma_frq > tthresh)] = data_rfi.mean(dim=1)
     return data_rfi
 
 # def disbar(max, dn):
