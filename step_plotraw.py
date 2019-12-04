@@ -107,7 +107,7 @@ def frbplot(filen, ststart):
             data_raw = data_raw[:, ::-1]
         print("Read FILE %.2f"%(time.time() - tstart))
         sys.stdout.flush()
-
+        useGPU = False
         # GPU or CPU #
         if useGPU == True:
             # init tensor #
@@ -123,7 +123,7 @@ def frbplot(filen, ststart):
             sys.stdout.flush()
 
             # Dedispersion #
-            print(data_des.shape, data_rfi.shape, delay[-1], block_tlsm)
+            # print(data_des.shape, data_rfi.shape, delay[-1], block_tlsm)
             sys.stdout.flush()
             for i in range(nchan- choff_high - choff_low):
                 data_des[:, i] = torch.roll(data_rfi[:, i], int(-delay[i]))
@@ -149,31 +149,36 @@ def frbplot(filen, ststart):
             print("Smoothing %.2f"%(time.time() - tstart))
             sys.stdout.flush()    
         else:
+            # init array #
+            data_rfi = np.zeros((block_tlsm, nchan-choff_low-choff_high), dtype=np.float32)
+            data_des = np.zeros((block_tlsm, nchan-choff_low-choff_high), dtype=np.float32)
+
             # Cleanning #
             data_rfi = step_lib_comm.cleanning(data_raw, tthresh, nchan, choff_low ,choff_high, 
-                        numblock, winsize, totalsm)
+                        block_nb, winsize, sample)
             print("Clean %.2f"%(time.time() - tstart))
             sys.stdout.flush()
 
             #Dedispersion #
-            data_des = np.zeros((sample, nchan-choff_low-choff_high))
             for i in range(nchan- choff_high - choff_low):
-                data_des[:, i] = np.roll(data_rfi.copy()[:, i], int(-delay[i]))
+                data_des[:, i] = np.roll(data_rfi[:, i], int(-delay[i]))
             print("Dedispersion %.2f"%(time.time() - tstart))
             sys.stdout.flush()
 
             # SNR Detecting #
-            med, rms = step_lib_comm.mad(data_des, numblock, winsize)
+            med_bl, rms_bl = step_lib_comm.mad(data_des[: block_sm].copy(), block_nb, winsize)
+            med[bnum*Blockwz: bnum*Blockwz+block_nb, :] = med_bl
+            rms[bnum*Blockwz: bnum*Blockwz+block_nb] = rms_bl
             print("MAD %.2f"%(time.time() - tstart))
             sys.stdout.flush()
 
             # Smoothing #
-            plot_rfi = step_lib_comm.convolve(data_rfi, int(plotbc))
-            plot_des = step_lib_comm.convolve(data_des, int(plotbc))
+            plot_rfi[bnum*Blocksm: bnum*Blocksm+block_tlsm] = step_lib_comm.convolve(data_rfi, int(plotbc))
+            plot_des[bnum*Blocksm: bnum*Blocksm+block_tlsm] = step_lib_comm.convolve(data_des, int(plotbc))
             print("Smoothing %.2f"%(time.time() - tstart))
             sys.stdout.flush()    
-    data_rfi = []
-    data_des = []
+    # data_rfi = []
+    # data_des = []
     #### Plot PDF File ####
     with PdfPages('PLOT'+rst_filen+'.'+str(header['ibeam'])+'.pdf') as pdf:
         # Calc size of plot #
