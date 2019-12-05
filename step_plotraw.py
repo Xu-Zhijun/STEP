@@ -76,111 +76,144 @@ def frbplot(filen, ststart):
     # Calc Block Number #
     Blockwz = BlockSize*1024*1024//(nchan*4*winsize)
     Blocksm = Blockwz*winsize
-    print("Blocksm =", Blocksm, "Totalsm =", totalsm, "WindowSize =", winsize)
+    # print("Blocksm =", Blocksm, "Totalsm =", totalsm, "WindowSize =", winsize)
     if Blocksm > sample :
         Blocksm = sample
         BlockNum = 1
     else:
         BlockNum = math.ceil(sample/Blocksm)
-    print("Blocksm =", Blocksm, BlockNum, (BlockNum*Blocksm-sample)/winsize, Blocksm*header['tsamp'])    
+    if Blocksm < int(delay[-1]):
+        print("Warning!!! Max delay is larger than Block Size!!!!")
+        sys.stdout.flush()
+    # print("Blocksm =", Blocksm, BlockNum, (BlockNum*Blocksm-sample)/winsize, Blocksm*header['tsamp'])    
     sys.stdout.flush()
 
-    #### Main loop ####
-    for bnum in range(BlockNum):
-        # calc current blocksize #
-        if (bnum+1)*Blocksm + int(delay[-1])> sample:
-            block_tlsm = sample - bnum*Blocksm
-            block_sm = sample - bnum*Blocksm
-            block_nb = block_sm//winsize
-        else:
-            block_tlsm = Blocksm + int(delay[-1])
-            block_sm = Blocksm
-            block_nb = block_sm//winsize
-        
-        # read file #
-        if ispsrfits: # PSRFITS #
-            data_raw = psrdata[bnum*Blocksm: bnum*Blocksm+block_tlsm]
-        else:
-            data_raw = step_lib_comm.read_file(filen, data_raw, numbits, headsize+bnum*Blocksm*average*totalch, 
-                                block_tlsm*average*totalch, block_tlsm, average, nchan, freqavg, tstart)
-        if header['foff'] > 0:  # Reverse the Data if foff > 0
-            data_raw = data_raw[:, ::-1]
-        print("Read FILE %.2f"%(time.time() - tstart))
-        sys.stdout.flush()
-        useGPU = False
-        # GPU or CPU #
-        if useGPU == True:
-            # init tensor #
-            cuda = torch.device("cuda")
-            data_rfi = torch.zeros((block_tlsm, nchan-choff_low-choff_high), dtype=float, device=cuda)
-            data_des = torch.zeros((block_tlsm, nchan-choff_low-choff_high), dtype=float, device=cuda)
-
-            # Cleanning #
-            data_rfi = step_lib_comm.cleanning_gpu(torch.from_numpy(data_raw).cuda(), 
-                    tthresh, nchan, choff_low ,choff_high, block_nb, winsize, sample)
-            # step_lib_comm.printcuda(cuda)
-            print("Clean %.2f"%(time.time() - tstart))
-            sys.stdout.flush()
-
-            # Dedispersion #
-            # print(data_des.shape, data_rfi.shape, delay[-1], block_tlsm)
-            sys.stdout.flush()
-            for i in range(nchan- choff_high - choff_low):
-                data_des[:, i] = torch.roll(data_rfi[:, i], int(-delay[i]))
-            # step_lib_comm.printcuda(cuda)
-            print("Dedispersion %.2f"%(time.time() - tstart))
-            sys.stdout.flush()
-
-            # SNR Detecting #
-            med_bl, rms_bl = step_lib_comm.mad_gpu(
-                                    data_des[: block_sm].detach().clone(), block_nb, winsize)
-            med[bnum*Blockwz: bnum*Blockwz+block_nb, :] = np.array(med_bl.cpu())
-            rms[bnum*Blockwz: bnum*Blockwz+block_nb] = np.array(rms_bl.cpu())
-            # step_lib_comm.printcuda(cuda)
-            print("MAD %.2f"%(time.time() - tstart))
-            sys.stdout.flush()
-
-            # Smoothing #
-            plot_rfi[bnum*Blocksm: bnum*Blocksm+block_tlsm] = np.array(
-                                    step_lib_comm.convolve_gpu(data_rfi, int(plotbc)).cpu())
-            plot_des[bnum*Blocksm: bnum*Blocksm+block_tlsm] = np.array(
-                                    step_lib_comm.convolve_gpu(data_des, int(plotbc)).cpu())
-            # step_lib_comm.printcuda(cuda)
-            print("Smoothing %.2f"%(time.time() - tstart))
-            sys.stdout.flush()    
-        else:
-            # init array #
-            data_rfi = np.zeros((block_tlsm, nchan-choff_low-choff_high), dtype=np.float32)
-            data_des = np.zeros((block_tlsm, nchan-choff_low-choff_high), dtype=np.float32)
-
-            # Cleanning #
-            data_rfi = step_lib_comm.cleanning(data_raw, tthresh, nchan, choff_low ,choff_high, 
-                        block_nb, winsize, sample)
-            print("Clean %.2f"%(time.time() - tstart))
-            sys.stdout.flush()
-
-            #Dedispersion #
-            for i in range(nchan- choff_high - choff_low):
-                data_des[:, i] = np.roll(data_rfi[:, i], int(-delay[i]))
-            print("Dedispersion %.2f"%(time.time() - tstart))
-            sys.stdout.flush()
-
-            # SNR Detecting #
-            med_bl, rms_bl = step_lib_comm.mad(data_des[: block_sm].copy(), block_nb, winsize)
-            med[bnum*Blockwz: bnum*Blockwz+block_nb, :] = med_bl
-            rms[bnum*Blockwz: bnum*Blockwz+block_nb] = rms_bl
-            print("MAD %.2f"%(time.time() - tstart))
-            sys.stdout.flush()
-
-            # Smoothing #
-            plot_rfi[bnum*Blocksm: bnum*Blocksm+block_tlsm] = step_lib_comm.convolve(data_rfi, int(plotbc))
-            plot_des[bnum*Blocksm: bnum*Blocksm+block_tlsm] = step_lib_comm.convolve(data_des, int(plotbc))
-            print("Smoothing %.2f"%(time.time() - tstart))
-            sys.stdout.flush()    
-    # data_rfi = []
-    # data_des = []
-    #### Plot PDF File ####
+    #### Main loop ####    
     with PdfPages('PLOT'+rst_filen+'.'+str(header['ibeam'])+'.pdf') as pdf:
+        for bnum in range(BlockNum):
+            # calc current blocksize #
+            if (bnum+1)*Blocksm + int(delay[-1])> sample:
+                block_tlsm = sample - bnum*Blocksm
+                # block_sm = sample - bnum*Blocksm
+                # block_nb = block_sm//winsize
+            else:
+                block_tlsm = Blocksm + int(delay[-1])
+
+            if (bnum+1)*Blocksm > sample:
+                block_sm = sample - bnum*Blocksm
+            else:
+                block_sm = Blocksm
+            block_nb = block_sm//winsize
+            # print(block_tlsm, block_sm, block_nb)
+            
+            # read file #
+            if ispsrfits: # PSRFITS #
+                data_raw = psrdata[bnum*Blocksm: bnum*Blocksm+block_tlsm]
+            else:
+                data_raw = step_lib_comm.read_file(filen, data_raw, numbits, headsize+bnum*Blocksm*average*totalch, 
+                                    block_tlsm*average*totalch, block_tlsm, average, nchan, freqavg, tstart)
+            if header['foff'] > 0:  # Reverse the Data if foff > 0
+                data_raw = data_raw[:, ::-1]
+            print("%d/%d Read FILE %.2f"%(bnum+1, BlockNum, time.time() - tstart))
+            sys.stdout.flush()
+            # useGPU = False
+            # GPU or CPU #
+            if useGPU == True:
+                # init tensor #
+                cuda = torch.device("cuda")
+                data_rfi = torch.zeros((block_tlsm, nchan-choff_low-choff_high), dtype=float, device=cuda)
+                data_des = torch.zeros((block_tlsm, nchan-choff_low-choff_high), dtype=float, device=cuda)
+
+                # Cleanning #
+                data_rfi = step_lib_comm.cleanning_gpu(torch.from_numpy(data_raw).cuda(), 
+                        tthresh, nchan, choff_low ,choff_high, block_nb, winsize, block_tlsm)
+                # step_lib_comm.printcuda(cuda)
+                print("%d/%d Clean %.2f"%(bnum+1, BlockNum, time.time() - tstart))
+                sys.stdout.flush()
+
+                # Dedispersion #
+                # print(data_des.shape, data_rfi.shape, delay[-1], block_tlsm)
+                sys.stdout.flush()
+                for i in range(nchan- choff_high - choff_low):
+                    data_des[:, i] = torch.roll(data_rfi[:, i], int(-delay[i]))
+                # step_lib_comm.printcuda(cuda)
+                print("%d/%d Dedispersion %.2f"%(bnum+1, BlockNum, time.time() - tstart))
+                sys.stdout.flush()
+
+                # SNR Detecting #
+                med_bl, rms_bl = step_lib_comm.mad_gpu(
+                                        data_des[: block_sm].detach().clone(), block_nb, winsize)
+                med[bnum*Blockwz: bnum*Blockwz+block_nb, :] = np.array(med_bl.cpu())
+                rms[bnum*Blockwz: bnum*Blockwz+block_nb] = np.array(rms_bl.cpu())
+                # step_lib_comm.printcuda(cuda)
+                print("%d/%d MAD %.2f"%(bnum+1, BlockNum, time.time() - tstart))
+                sys.stdout.flush()
+
+                # Smoothing #
+                if bnum == 0 and BlockNum != 1:
+                    plot_rfi[: block_tlsm] = np.array(
+                                            step_lib_comm.convolve_gpu(data_rfi, int(plotbc)).cpu())
+                    plot_des[: block_tlsm] = np.array(
+                                            step_lib_comm.convolve_gpu(data_des, int(plotbc)).cpu())                    
+                else:
+                    plot_rfi[bnum*Blocksm: bnum*Blocksm+block_sm] = np.array(
+                                            step_lib_comm.convolve_gpu(data_rfi[: block_sm], int(plotbc)).cpu())
+                    plot_des[bnum*Blocksm: bnum*Blocksm+block_sm] = np.array(
+                                            step_lib_comm.convolve_gpu(data_des[: block_sm], int(plotbc)).cpu())
+                # step_lib_comm.printcuda(cuda)
+                print("%d/%d Smoothing %.2f"%(bnum+1, BlockNum, time.time() - tstart))
+                sys.stdout.flush()    
+            else:
+                # init array #
+                data_rfi = np.zeros((block_tlsm, nchan-choff_low-choff_high), dtype=np.float32)
+                data_des = np.zeros((block_tlsm, nchan-choff_low-choff_high), dtype=np.float32)
+
+                # Cleanning #
+                data_rfi = step_lib_comm.cleanning(data_raw, tthresh, nchan, choff_low ,choff_high, 
+                            block_nb, winsize, block_tlsm)
+                print("%d/%d Clean %.2f"%(bnum+1, BlockNum, time.time() - tstart))
+                sys.stdout.flush()
+
+                #Dedispersion #
+                for i in range(nchan- choff_high - choff_low):
+                    data_des[:, i] = np.roll(data_rfi[:, i], int(-delay[i]))
+                print("%d/%d Dedispersion %.2f"%(bnum+1, BlockNum, time.time() - tstart))
+                sys.stdout.flush()
+
+                # SNR Detecting #
+                med_bl, rms_bl = step_lib_comm.mad(data_des[: block_sm].copy(), block_nb, winsize)
+                med[bnum*Blockwz: bnum*Blockwz+block_nb, :] = med_bl
+                rms[bnum*Blockwz: bnum*Blockwz+block_nb] = rms_bl
+                print("%d/%d MAD %.2f"%(bnum+1, BlockNum, time.time() - tstart))
+                sys.stdout.flush()
+
+                # Smoothing #
+                if bnum == 0 and BlockNum != 1:
+                    plot_rfi[: block_tlsm] = step_lib_comm.convolve(data_rfi, int(plotbc))
+                    plot_des[: block_tlsm] = step_lib_comm.convolve(data_des, int(plotbc))
+                else:
+                    plot_rfi[bnum*Blocksm: bnum*Blocksm+block_sm] = step_lib_comm.convolve(data_rfi[: block_sm], int(plotbc))
+                    plot_des[bnum*Blocksm: bnum*Blocksm+block_sm] = step_lib_comm.convolve(data_des[: block_sm], int(plotbc))
+                print("%d/%d Smoothing %.2f"%(bnum+1, BlockNum, time.time() - tstart))
+                sys.stdout.flush() 
+
+            # sub plot #
+            if BlockNum != 1:
+                if bnum == 0:
+                    # print("First Block", Blocksm, block_tlsm)
+                    splt.plotraw((plot_rfi[Blocksm: ])[:, ::-1], 
+                                (plot_des[Blocksm: ])[:, ::-1], 
+                                (block_tlsm-Blocksm), rst_filen, average, freqavg, nchan, header,  
+                                (block_tlsm-Blocksm)*average,choff_low, choff_high, pdf, plotpes, 
+                                ispsrfits, plotDM, plotbc) 
+                # print(bnum*Blocksm, bnum*Blocksm+block_sm, block_sm)
+                splt.plotraw((plot_rfi[bnum*Blocksm: bnum*Blocksm+block_sm])[:, ::-1], 
+                            (plot_des[bnum*Blocksm: bnum*Blocksm+block_sm])[:, ::-1], 
+                            block_sm, rst_filen, average, freqavg, nchan, header, block_sm*average, 
+                            choff_low, choff_high, pdf, plotpes, ispsrfits, plotDM, plotbc)  
+
+        #### Plot PDF File ####
+    # with PdfPages('PLOT'+rst_filen+'.'+str(header['ibeam'])+'.pdf') as pdf:
         # Calc size of plot #
         smpmax = int(delay[-1]*plotrange)
         if smpmax < 250:

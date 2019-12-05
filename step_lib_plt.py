@@ -64,7 +64,7 @@ def plotdmraw(finn, dess, pltime, pldm, filname, avg, freqavg, med, rms, totalch
     fig.set_size_inches(15, 10)
     plt.subplots_adjust(wspace= 0.01, hspace= 0.02, left=0.06, bottom=0.07, right=0.95, top=0.88)
     #### Plot TEXT ####
-    fig.suptitle("SHAO_FRB results for:  %s Offset: %8.4fs %s DM: %4.4f \
+    fig.suptitle("STEP_SNAPSHOT Pulse:  %s Offset: %8.4fs %s DM: %4.4f \
     Average:%3d %sFreqAvg:%3d  %sBOXCAR:%3d %sBeam: %3d/%3d\n\n\n\n\n"%(filname.ljust(25,' '),  
         timeoff, ' '.ljust(3,' '), pldm, avg, ' '.ljust(3,' '), freqavg, ' '.ljust(3,' '), maxbc,
         ' '.ljust(3,' '), header['ibeam'], header['nbeams']), color='1') 
@@ -133,7 +133,6 @@ def plotdmraw(finn, dess, pltime, pldm, filname, avg, freqavg, med, rms, totalch
 
 def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm, choff_low, 
             choff_high, pdf, plotpes, ispsrfits, pldm, plbc):
-
     # cdict1 = {'red':  ((0.0, 0.0, 0.0),
     #                (0.5, 0.0, 0.1),
     #                (1.0, 1.0, 1.0)),            
@@ -191,7 +190,7 @@ def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm
     fig.set_size_inches(15, 10)
     plt.subplots_adjust(wspace= 0.01, hspace= 0.02, left=0.06, bottom=0.07, right=0.95, top=0.88)
     #### Plot TEXT ####
-    fig.suptitle("STEP_SNAPSHOT results for:  %s %sDM: %4.4f \
+    fig.suptitle("STEP_SNAPSHOT Subplot:  %s %sDM: %4.4f \
     Average:%3d %sPlotAvg:%3d %sFreqAvg:%3d  %sBOXCAR:%3d %sBeam: %3d/%3d\n\n\n\n\n"%(filname.ljust(25,' '),
         ' '.ljust(5,' '), pldm, avg, ' '.ljust(3,' '), plotavg, ' '.ljust(3,' '), freqavg,  
         ' '.ljust(3,' '), plbc, ' '.ljust(3,' '), header['ibeam'], header['nbeams']), color='1')

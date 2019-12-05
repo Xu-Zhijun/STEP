@@ -108,7 +108,16 @@ def readini(inifile):
         elif 'PlotBoxcar' in all_lines[i]:
             PlotBoxcar = float(all_lines[i].split()[2])     
         elif 'BlockSize' in all_lines[i]:
-            BlockSize = int(all_lines[i].split()[2])       
+            BlockSize = int(all_lines[i].split()[2])
+        elif 'useGPU' in all_lines[i]:
+            if int(all_lines[i].split()[2]) == 0:
+                print("Using CPU")
+                useGPU = False
+            else:
+                print("Using GPU")
+                useGPU = True
+            sys.stdout.flush()
+                
     if (FREQAVG == 0 or AVERAGE == 0) :
         print("AVERAGE or FREQAVG can't be Zero !!!")
         exit()
@@ -240,13 +249,13 @@ def read_file(filen, data_raw, numbits, headsize, countsize, smaple, average,
         with open(str(filen),'rb') as fn:
             fn.seek(headsize)
             if   numbits == 32:
-                fin = np.fromfile(fn, dtype=np.float32, count=countsize)
+                data_raw = np.fromfile(fn, dtype=np.float32, count=countsize)
             elif numbits == 16:
-                 fin = np.fromfile(fn, dtype=np.uint16, count=countsize)
+                data_raw = np.fromfile(fn, dtype=np.uint16, count=countsize)
             elif numbits == 8:
-                fin = np.fromfile(fn, dtype=np.uint8, count=countsize)
-        data_raw = fin.reshape(smaple, average, nchan, freqavg).mean(axis=(1,3))
-        if fin.size != countsize:
+                data_raw = np.fromfile(fn, dtype=np.uint8, count=countsize)
+        data_raw = data_raw.reshape(smaple, average, nchan, freqavg).mean(axis=(1,3))
+        if data_raw.size != countsize:
             print("FILE SIZE ERROR   %s Time:%.2f sec"%(filen, 
                     (time.time() - tstart)))
             sys.stdout.flush()
@@ -255,13 +264,13 @@ def read_file(filen, data_raw, numbits, headsize, countsize, smaple, average,
         numbtch = 8//numbits
         with open(str(filen),'rb') as fn:
             fn.seek(headsize)
-            fin = np.fromfile(fn, dtype=np.uint8, count=countsize//numbtch)
-        if fin.size != countsize//numbtch :
+            data_raw = np.fromfile(fn, dtype=np.uint8, count=countsize//numbtch)
+        if data_raw.size != countsize//numbtch :
             print("FILE SIZE ERROR   %s Time:%.2f sec"%(filen, 
                     (time.time() - tstart)))
             sys.stdout.flush()
             exit()
-        data_raw = fin.reshape(totalsm, totalch//numbtch, 1).repeat(numbtch, axis=2)            
+        data_raw = data_raw.reshape(totalsm, totalch//numbtch, 1).repeat(numbtch, axis=2)            
         if   numbtch == 2 :
             for i in range(numbtch):
                 data_raw[:, :, i] >> i*numbits & 0x0f
