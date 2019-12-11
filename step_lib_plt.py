@@ -132,7 +132,7 @@ def plotdmraw(finn, dess, pltime, pldm, filname, avg, freqavg, med, rms, totalch
     plt.close()
 
 def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm, choff_low, 
-            choff_high, pdf, plotpes, ispsrfits, pldm, plbc):
+            choff_high, pdf, plotpes, ispsrfits, pldm, plbc, offset):
     # cdict1 = {'red':  ((0.0, 0.0, 0.0),
     #                (0.5, 0.0, 0.1),
     #                (1.0, 1.0, 1.0)),            
@@ -142,12 +142,12 @@ def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm
     #                (0.5, 0.1, 0.0),
     #                (1.0, 0.0, 0.0))}
     # blue_red1 = LinearSegmentedColormap('BlueRed1', cdict1)
-    inferno  = cm.get_cmap('inferno', 256)
-    newcolors = inferno(np.linspace(0, 1, 256))
-    pink = np.array([0.993248, 0.906157, 0.143936, 1])
-    newcolors[-50:, :] = pink
-    newcmp = ListedColormap(newcolors)
-    #### Resize data ####    
+    # inferno  = cm.get_cmap('inferno', 256)
+    # newcolors = inferno(np.linspace(0, 1, 256))
+    # pink = np.array([0.993248, 0.906157, 0.143936, 1])
+    # newcolors[-50:, :] = pink
+    # newcmp = ListedColormap(newcolors)
+    ## Resize data ##
     if smaples > 1000:
         plotavg = smaples//1000
         smaples = 1000
@@ -159,7 +159,7 @@ def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm
         fn2 = fin2
     fn = fn - fn.mean(axis = 0)
     fn2 = fn2 - fn2.mean(axis = 0)
-    #### Read Para ####
+    ## Read Para ##
     if header['foff'] < 0:
         ymax = header['fch1']
         ymin = header['fch1'] + header['foff']*header['nchans']
@@ -189,7 +189,7 @@ def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm
     fig.set_facecolor('k')
     fig.set_size_inches(15, 10)
     plt.subplots_adjust(wspace= 0.01, hspace= 0.02, left=0.06, bottom=0.07, right=0.95, top=0.88)
-    #### Plot TEXT ####
+    ## Plot TEXT ##
     fig.suptitle("STEP_SNAPSHOT Subplot:  %s %sDM: %4.4f \
     Average:%3d %sPlotAvg:%3d %sFreqAvg:%3d  %sBOXCAR:%3d %sBeam: %3d/%3d\n\n\n\n\n"%(filname.ljust(25,' '),
         ' '.ljust(5,' '), pldm, avg, ' '.ljust(3,' '), plotavg, ' '.ljust(3,' '), freqavg,  
@@ -203,7 +203,7 @@ def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm
     fig.text(0.65, 0.94, "N samples: %s"%str(totalsm), color='1', size=12)
     fig.text(0.65, 0.92, "Sampling time: %s us"%str(smpt), color='1', size=12)
     fig.text(0.65, 0.90, "Freq(ctr): %s MHz"%str(freqctr), color='1', size=12)
-    ### SET STYLE ####
+    ## SET STYLE ##
     for yl in range(3):
         axes[yl, 1].set_yticks([]) 
         for xl in range(2):
@@ -216,15 +216,19 @@ def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm
                 axes[yl, xl].spines['bottom'].set_color('w')
     axes[0,1].set_facecolor('k')
     axes[1,1].set_facecolor('k')
-    axes[0,0].set_xticks(np.arange(0, 1001, 100))    
-    axes[1,0].set_xticks(np.arange(0, 1001, 100))     
+    axes[1,1].tick_params(colors='w')
+    axes[0,0].set_xticks(np.arange(100, 901, 100))    
+    axes[1,0].set_xticks(np.arange(100, 901, 100))     
     axes[2,0].set_xticks(np.arange(0, 1001, 100)*plotavg*avg*smpt*1e-6) 
-    #### Plot Flux ####
+    timetick = ['%.2f'%oi for oi in np.arange(0, 1001, 100)*plotavg*avg*smpt*1e-6 + offset]    
+    axes[2,0].set_xticklabels(timetick)
+    ## Plot Top Flux ##
     axes[0,0].plot(np.arange(0, smaples), (fn2.mean(axis=1)), color='w', linewidth=1)
     axes[0,0].set_ylabel("Flux", color='w')    
     axes[0,0].set_xlim(0, smaples)
+    axes[0,0].yaxis.get_major_formatter().set_powerlimits((0,1))
     fig.text(0.875, 0.86, 'MAX %4.3f'%(fn2.mean(axis=1).max()), color='1')
-    #### Plot Result ####
+    ## Plot Raw data ##
     re1 = axes[2,0].imshow(np.transpose(fn), aspect = 'auto', origin = 'lower',
             extent = [0, smaples*plotavg*avg*smpt*1e-6, ymin, ymax],
             cmap = 'inferno',  # viridis, magma, Blues
@@ -233,7 +237,7 @@ def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm
     axes[2,0].set_ylabel("Frequency (MHz)", color='w')
     axes[2,0].set_xlabel("Time (s)", color='w')
     axes[2,0].tick_params(colors='w')
-    #### Plot Raw data ####
+    ## Plot Dedispersion data ##
     re2 = axes[1,0].imshow(np.transpose(fn2), aspect = 'auto', origin = 'lower',
             extent = [0, smaples, ymin2, ymax2],
             cmap = 'inferno',  # viridis, magma, Blues, 'plasma'
@@ -241,11 +245,15 @@ def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm
             vmin=np.sort(fn2).reshape(-1)[int(fn2.size*(1-plotpes))], vmax= np.max(fn2))
     axes[1,0].set_ylabel("Frequency (MHz)", color='w')
     axes[1,0].tick_params(colors='w')
-    #### Plot Raw Flux ####
+    ## Plot Raw Flux ##
     plotwinx(axes[2,1], totalch, fn)
-    axes[2,1].set_xlabel("Flux", color='w')
+    axes[2,1].xaxis.get_major_formatter().set_powerlimits((0,1))
+    axes[2,1].set_xticks([0, np.max(fn.mean(axis=0))])
+    # axes[2,1].set_xlabel("Flux", color='w')
+    ## Plot Dedispersion Flux ##
     plotwinx(axes[1,1], totalch-choff_low-choff_high, fn2)
-    axes[1,1].set_xlabel("Flux", color='w')
-    ### Save FIG File ####
+    axes[1,1].set_xticks([0])
+    # axes[1,1].set_xlabel("Flux", color='w')
+    ## Save FIG File ##
     pdf.savefig(facecolor='k')
     plt.close()

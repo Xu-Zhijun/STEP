@@ -201,16 +201,16 @@ def frbplot(filen, ststart):
             if BlockNum != 1:
                 if bnum == 0:
                     # print("First Block", Blocksm, block_tlsm)
-                    splt.plotraw((plot_rfi[Blocksm: ])[:, ::-1], 
-                                (plot_des[Blocksm: ])[:, ::-1], 
+                    splt.plotraw((plot_rfi[Blocksm: block_tlsm])[:, ::-1], 
+                                (plot_des[Blocksm: block_tlsm])[:, ::-1], 
                                 (block_tlsm-Blocksm), rst_filen, average, freqavg, nchan, header,  
-                                (block_tlsm-Blocksm)*average,choff_low, choff_high, pdf, plotpes, 
-                                ispsrfits, plotDM, plotbc) 
+                                (block_tlsm-Blocksm)*average, choff_low, choff_high, pdf, plotpes, 
+                                ispsrfits, plotDM, plotbc, 0) 
                 # print(bnum*Blocksm, bnum*Blocksm+block_sm, block_sm)
                 splt.plotraw((plot_rfi[bnum*Blocksm: bnum*Blocksm+block_sm])[:, ::-1], 
                             (plot_des[bnum*Blocksm: bnum*Blocksm+block_sm])[:, ::-1], 
                             block_sm, rst_filen, average, freqavg, nchan, header, block_sm*average, 
-                            choff_low, choff_high, pdf, plotpes, ispsrfits, plotDM, plotbc)  
+                            choff_low, choff_high, pdf, plotpes, ispsrfits, plotDM, plotbc, bnum*Blocksm*header['tsamp']*average)  
 
         #### Plot PDF File ####
     # with PdfPages('PLOT'+rst_filen+'.'+str(header['ibeam'])+'.pdf') as pdf:
@@ -249,7 +249,7 @@ def frbplot(filen, ststart):
                             maxbc, choff_low, choff_high, pdf, plotpes, ispsrfits)
         # Plot Raw and RRI data #
         splt.plotraw(plot_rfi[:, ::-1], plot_des[:, ::-1], sample, rst_filen, average, freqavg, 
-                nchan, header, totalsm, choff_low, choff_high, pdf, plotpes, ispsrfits, plotDM, plotbc)
+                nchan, header, totalsm, choff_low, choff_high, pdf, plotpes, ispsrfits, plotDM, plotbc, 0)
     print("Save PDF %.2f"%(time.time() - tstart))
     sys.stdout.flush()   
 
