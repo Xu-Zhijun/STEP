@@ -116,7 +116,6 @@ def frbplot(filen, ststart):
                 data_raw = data_raw[:, ::-1]
             print("%d/%d Read FILE %.2f"%(bnum+1, BlockNum, time.time() - tstart))
             sys.stdout.flush()
-            # useGPU = False
             # GPU or CPU #
             if useGPU == True:
                 # init tensor #
@@ -132,11 +131,9 @@ def frbplot(filen, ststart):
                 sys.stdout.flush()
 
                 # Dedispersion #
-                # print(data_des.shape, data_rfi.shape, delay[-1], block_tlsm)
                 sys.stdout.flush()
                 for i in range(nchan- choff_high - choff_low):
                     data_des[:, i] = torch.roll(data_rfi[:, i], int(-delay[i]))
-                # step_lib_comm.printcuda(cuda)
                 print("%d/%d Dedispersion %.2f"%(bnum+1, BlockNum, time.time() - tstart))
                 sys.stdout.flush()
 
@@ -145,7 +142,6 @@ def frbplot(filen, ststart):
                                         data_des[: block_sm].detach().clone(), block_nb, winsize)
                 med[bnum*Blockwz: bnum*Blockwz+block_nb, :] = np.array(med_bl.cpu())
                 rms[bnum*Blockwz: bnum*Blockwz+block_nb] = np.array(rms_bl.cpu())
-                # step_lib_comm.printcuda(cuda)
                 print("%d/%d MAD %.2f"%(bnum+1, BlockNum, time.time() - tstart))
                 sys.stdout.flush()
 
@@ -160,7 +156,6 @@ def frbplot(filen, ststart):
                                             step_lib_comm.convolve_gpu(data_rfi[: block_sm], int(plotbc)).cpu())
                     plot_des[bnum*Blocksm: bnum*Blocksm+block_sm] = np.array(
                                             step_lib_comm.convolve_gpu(data_des[: block_sm], int(plotbc)).cpu())
-                # step_lib_comm.printcuda(cuda)
                 print("%d/%d Smoothing %.2f"%(bnum+1, BlockNum, time.time() - tstart))
                 sys.stdout.flush()    
             else:
@@ -206,11 +201,16 @@ def frbplot(filen, ststart):
                                 (block_tlsm-Blocksm), rst_filen, average, freqavg, nchan, header,  
                                 (block_tlsm-Blocksm)*average, choff_low, choff_high, pdf, plotpes, 
                                 ispsrfits, plotDM, plotbc, 0) 
-                # print(bnum*Blocksm, bnum*Blocksm+block_sm, block_sm)
-                splt.plotraw((plot_rfi[bnum*Blocksm: bnum*Blocksm+block_sm])[:, ::-1], 
-                            (plot_des[bnum*Blocksm: bnum*Blocksm+block_sm])[:, ::-1], 
-                            block_sm, rst_filen, average, freqavg, nchan, header, block_sm*average, 
-                            choff_low, choff_high, pdf, plotpes, ispsrfits, plotDM, plotbc, bnum*Blocksm*header['tsamp']*average)  
+            for nb in range(block_nb):
+            # splt.plotraw((plot_rfi[bnum*Blocksm: bnum*Blocksm+block_sm])[:, ::-1], 
+            #             (plot_des[bnum*Blocksm: bnum*Blocksm+block_sm])[:, ::-1], 
+            #             block_sm, rst_filen, average, freqavg, nchan, header, block_sm*average, 
+            #             choff_low, choff_high, pdf, plotpes, ispsrfits, plotDM, plotbc, bnum*Blocksm*header['tsamp']*average) 
+                plot_offset = bnum*Blocksm + nb*winsize
+                splt.plotraw((plot_rfi[plot_offset: plot_offset + winsize])[:, ::-1], 
+                            (plot_des[plot_offset: plot_offset + winsize])[:, ::-1], 
+                            winsize, rst_filen, average, freqavg, nchan, header, winsize*average, 
+                            choff_low, choff_high, pdf, plotpes, ispsrfits, plotDM, plotbc, plot_offset*header['tsamp']*average)  
 
         #### Plot PDF File ####
     # with PdfPages('PLOT'+rst_filen+'.'+str(header['ibeam'])+'.pdf') as pdf:

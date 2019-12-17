@@ -148,9 +148,10 @@ def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm
     # newcolors[-50:, :] = pink
     # newcmp = ListedColormap(newcolors)
     ## Resize data ##
-    if smaples > 1000:
-        plotavg = smaples//1000
-        smaples = 1000
+    plotrange = 1000
+    if smaples > plotrange:
+        plotavg = smaples//plotrange
+        smaples = plotrange
         fn  = fin1[: plotavg*smaples, :].reshape(smaples, plotavg, -1).mean(axis=1)
         fn2 = fin2[: plotavg*smaples, :].reshape(smaples, plotavg, -1).mean(axis=1)
     else:
