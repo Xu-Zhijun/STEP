@@ -105,12 +105,24 @@ def frbplot(filen, ststart):
                 block_sm = Blocksm
             block_nb = block_sm//winsize
             # print(block_tlsm, block_sm, block_nb)
+            if numbits == 8:
+                header_offset = headsize+bnum*Blocksm*average*totalch
+            elif numbits == 16:
+                header_offset = headsize+bnum*Blocksm*average*totalch*2
+            elif numbits == 32:
+                header_offset = headsize+bnum*Blocksm*average*totalch*4
+            elif numbits == 4:
+                header_offset = headsize+bnum*Blocksm*average*totalch//2
+            elif numbits == 2:
+                header_offset = headsize+bnum*Blocksm*average*totalch//4
+            elif numbits == 1:
+                header_offset = headsize+bnum*Blocksm*average*totalch//8
             
             # read file #
             if ispsrfits: # PSRFITS #
                 data_raw = psrdata[bnum*Blocksm: bnum*Blocksm+block_tlsm]
             else:
-                data_raw = step_lib_comm.read_file(filen, data_raw, numbits, headsize+bnum*Blocksm*average*totalch, 
+                data_raw = step_lib_comm.read_file(filen, data_raw, numbits, header_offset, 
                                     block_tlsm*average*totalch, block_tlsm, average, nchan, freqavg, tstart)
             if header['foff'] > 0:  # Reverse the Data if foff > 0
                 data_raw = data_raw[:, ::-1]

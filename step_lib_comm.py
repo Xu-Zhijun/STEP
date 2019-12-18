@@ -270,7 +270,7 @@ def read_file(filen, data_raw, numbits, headsize, countsize, smaple, average,
                     (time.time() - tstart)))
             sys.stdout.flush()
             exit()
-        data_raw = data_raw.reshape(totalsm, totalch//numbtch, 1).repeat(numbtch, axis=2)            
+        data_raw = data_raw.reshape(smaple*average, (nchan*freqavg)//numbtch, 1).repeat(numbtch, axis=2)            
         if   numbtch == 2 :
             for i in range(numbtch):
                 data_raw[:, :, i] >> i*numbits & 0x0f
@@ -280,6 +280,5 @@ def read_file(filen, data_raw, numbits, headsize, countsize, smaple, average,
         elif numbtch == 8 :
             for i in range(numbtch):
                 data_raw[:, :, i] >> i*numbits & 0x01            
-        data_raw = data_raw.reshape(smaple, average, nchan, freqavg).float(
-                        ).mean(axis=(1,3))
+        data_raw = data_raw.reshape(smaple, average, nchan, freqavg).mean(axis=(1,3))
     return data_raw           
