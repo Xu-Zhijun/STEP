@@ -41,9 +41,6 @@ def frbplot(filen, ststart):
     nchan = totalch//freqavg
     smptm *= average
     maxbc = plotbc
-    print("Start %s Nchan:%d Nbits:%d TotalSample:%d TotalTime:%.2f sec"%(
-            rst_filen, totalch, numbits, totalsm, totalsm*header['tsamp']))
-    sys.stdout.flush()
 
     # Init #
     maxsm = np.zeros(len(plotime))
@@ -68,6 +65,10 @@ def frbplot(filen, ststart):
         lowch = header['fch1']*1e-3 + chbwd*freqavg*choff_low
     chfrq = np.arange(higch, lowch, -chbwd*freqavg)
     delay = (4148.741601*plotDM*(chfrq**(-2) - (higch)**(-2))/smptm).round()
+
+    print("Start %s Nchan:%d Nbits:%d TotalSample:%d TotalTime:%.2f sec, Maxdelay:%d"%(
+            rst_filen, totalch, numbits, totalsm, totalsm*header['tsamp'], delay[-1]))
+    sys.stdout.flush()
 
     # Read PSRFITS #
     if ispsrfits: # PSRFITS #
@@ -104,7 +105,6 @@ def frbplot(filen, ststart):
             else:
                 block_sm = Blocksm
             block_nb = block_sm//winsize
-            # print(block_tlsm, block_sm, block_nb)
             if numbits == 8:
                 header_offset = headsize+bnum*Blocksm*average*totalch
             elif numbits == 16:
@@ -119,11 +119,12 @@ def frbplot(filen, ststart):
                 header_offset = headsize+bnum*Blocksm*average*totalch//8
             
             # read file #
-            if ispsrfits: # PSRFITS #
+            # print(block_tlsm, block_sm, block_nb, header_offset)
+            if ispsrfits: # PSRFITS
                 data_raw = psrdata[bnum*Blocksm: bnum*Blocksm+block_tlsm]
             else:
                 data_raw = step_lib_comm.read_file(filen, data_raw, numbits, header_offset, 
-                                    block_tlsm*average*totalch, block_tlsm, average, nchan, freqavg, tstart)
+                                block_tlsm*average*totalch, block_tlsm, average, nchan, freqavg, tstart)
             if header['foff'] > 0:  # Reverse the Data if foff > 0
                 data_raw = data_raw[:, ::-1]
             print("%d/%d Read FILE %.2f"%(bnum+1, BlockNum, time.time() - tstart))
@@ -136,8 +137,9 @@ def frbplot(filen, ststart):
                 data_des = torch.zeros((block_tlsm, nchan-choff_low-choff_high), dtype=float, device=cuda)
 
                 # Cleanning #
-                data_rfi = step_lib_comm.cleanning_gpu(torch.from_numpy(data_raw).cuda(), 
-                        tthresh, nchan, choff_low ,choff_high, block_nb, winsize, block_tlsm)
+                data_tmp = step_lib_comm.cleanning(data_raw, tthresh, nchan, 
+                        choff_low ,choff_high, block_nb, winsize, block_tlsm)
+                data_rfi = torch.from_numpy(data_tmp).cuda()
                 # step_lib_comm.printcuda(cuda)
                 print("%d/%d Clean %.2f"%(bnum+1, BlockNum, time.time() - tstart))
                 sys.stdout.flush()
@@ -151,7 +153,8 @@ def frbplot(filen, ststart):
 
                 # SNR Detecting #
                 med_bl, rms_bl = step_lib_comm.mad_gpu(
-                                        data_des[: block_sm].detach().clone(), block_nb, winsize)
+                                        data_des[: block_sm].detach().clone().mean(dim= 1).view(block_nb, winsize), 
+                                        block_nb, winsize)
                 med[bnum*Blockwz: bnum*Blockwz+block_nb, :] = np.array(med_bl.cpu())
                 rms[bnum*Blockwz: bnum*Blockwz+block_nb] = np.array(rms_bl.cpu())
                 print("%d/%d MAD %.2f"%(bnum+1, BlockNum, time.time() - tstart))
@@ -188,7 +191,8 @@ def frbplot(filen, ststart):
                 sys.stdout.flush()
 
                 # SNR Detecting #
-                med_bl, rms_bl = step_lib_comm.mad(data_des[: block_sm].copy(), block_nb, winsize)
+                med_bl, rms_bl = step_lib_comm.mad(data_des[: block_sm].copy().mean(axis= 1).reshape(block_nb, winsize),
+                                                block_nb, winsize)
                 med[bnum*Blockwz: bnum*Blockwz+block_nb, :] = med_bl
                 rms[bnum*Blockwz: bnum*Blockwz+block_nb] = rms_bl
                 print("%d/%d MAD %.2f"%(bnum+1, BlockNum, time.time() - tstart))

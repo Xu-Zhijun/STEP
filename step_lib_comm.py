@@ -142,17 +142,23 @@ def convolve_gpu(dn, boxcar):
     return conv
 
 def mad(din, nbl, wsize):
-    tmp_des = np.sort(din.copy().mean(axis= 1).reshape(nbl, wsize), axis=1)
-    med = tmp_des[:, wsize//2].reshape(nbl, 1)
-    rms = np.sort(np.abs(tmp_des - med))[:, wsize//2] #
+    # tmp_des = np.sort(din.copy().mean(axis= 1).reshape(nbl, wsize), axis=1)
+    # med = tmp_des[:, wsize//2].reshape(nbl, 1)
+    # rms = np.sort(np.abs(tmp_des - med))[:, wsize//2] #
+    # din = din.mean(axis= 1).reshape(nbl, wsize)
+    med = np.median(din, axis=1).reshape(nbl, 1)
+    rms = np.median(np.abs(din-med), axis=1)
     return med, 1.4826*rms
 
 def mad_gpu(din, nbl, wsize):
-    tmp_des, _ = torch.sort(din.mean(dim= 1).view(nbl, wsize), dim=1)
-    # print(tmp_des.shape, wsize//2, nbl)
-    med = tmp_des[:, wsize//2].view(nbl, 1)
-    tmp_des, _ = torch.sort(torch.abs(tmp_des - med))
-    rms = tmp_des[:, wsize//2] #
+    # tmp_des, _ = torch.sort(din.mean(dim= 1).view(nbl, wsize), dim=1)
+    # med = tmp_des[:, wsize//2].view(nbl, 1)
+    # tmp_des, _ = torch.sort(torch.abs(tmp_des - med))
+    # rms = tmp_des[:, wsize//2] #
+    # din = din.mean(dim= 1).view(nbl, wsize)
+    med, _ = torch.median(din, 1)
+    med = med.view(nbl, 1)
+    rms, _ = torch.median(torch.abs(din-med), 1)
     return med, 1.4826*rms
 
 def cleanning(din, tthresh, totalch, choff_low, choff_high, nbl, wsize, sample):
@@ -173,7 +179,11 @@ def cleanning(din, tthresh, totalch, choff_low, choff_high, nbl, wsize, sample):
     # sigma_frq = ((data_rfi.copy().mean(axis = 0) - med_frq)/rms_frq).reshape(-1)
     # data_rfi.transpose()[np.where(sigma_frq > tthresh)] = np.random.chisquare(nch, 
     #                     sample)/nch*np.sqrt((med_frq**2).mean())
-    #data_rfi.transpose()[np.where(sigma_frq > tthresh)] = data_rfi.copy().mean(axis=1)
+    data_frq = data_rfi.copy().mean(axis= 0)
+    med_frq = np.median(data_frq)
+    rms_frq = np.median(np.abs(data_frq - med_frq))
+    sigma_frq = ((data_frq - med_frq)/rms_frq).reshape(-1)
+    data_rfi.transpose()[np.where(sigma_frq > tthresh)] = np.median(data_rfi.copy(), axis=1)
     return data_rfi
 
 def cleanning_gpu(din, tthresh, totalch, choff_low, choff_high, nbl, wsize, sample):
@@ -254,12 +264,12 @@ def read_file(filen, data_raw, numbits, headsize, countsize, smaple, average,
                 data_raw = np.fromfile(fn, dtype=np.uint16, count=countsize)
             elif numbits == 8:
                 data_raw = np.fromfile(fn, dtype=np.uint8, count=countsize)
-        data_raw = data_raw.reshape(smaple, average, nchan, freqavg).mean(axis=(1,3))
         if data_raw.size != countsize:
-            print("FILE SIZE ERROR   %s Time:%.2f sec"%(filen, 
-                    (time.time() - tstart)))
+            print("FILE SIZE ERROR %d / %d  %s Time:%.2f sec"%(data_raw.size, 
+                    countsize, filen, (time.time() - tstart)))
             sys.stdout.flush()
             exit()
+        data_raw = data_raw.reshape(smaple, average, nchan, freqavg).mean(axis=(1,3))
     else:               # BITS NUMBER 1/2/4
         numbtch = 8//numbits
         with open(str(filen),'rb') as fn:

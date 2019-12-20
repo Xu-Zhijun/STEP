@@ -247,7 +247,7 @@ def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm
     axes[1,0].set_ylabel("Frequency (MHz)", color='w')
     axes[1,0].tick_params(colors='w')
     ## Plot Raw Flux ##
-    plotwinx(axes[2,1], totalch, fn)
+    plotwinx(axes[2,1], totalch-choff_low-choff_high, fn)
     axes[2,1].xaxis.get_major_formatter().set_powerlimits((0,1))
     axes[2,1].set_xticks([0, np.max(fn.mean(axis=0))])
     # axes[2,1].set_xlabel("Flux", color='w')
