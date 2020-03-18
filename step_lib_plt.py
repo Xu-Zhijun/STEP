@@ -132,7 +132,7 @@ def plotdmraw(finn, dess, pltime, pldm, filname, avg, freqavg, med, rms, totalch
     plt.close()
 
 def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm, choff_low, 
-            choff_high, pdf, plotpes, ispsrfits, pldm, plbc, offset):
+            choff_high, pdf, plotpes, ispsrfits, pldm, plbc, offset, winsize, maxsigma):
     # cdict1 = {'red':  ((0.0, 0.0, 0.0),
     #                (0.5, 0.0, 0.1),
     #                (1.0, 1.0, 1.0)),            
@@ -148,7 +148,7 @@ def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm
     # newcolors[-50:, :] = pink
     # newcmp = ListedColormap(newcolors)
     ## Resize data ##
-    plotrange = 1000
+    plotrange = winsize #1024
     if smaples > plotrange:
         plotavg = smaples//plotrange
         smaples = plotrange
@@ -158,7 +158,7 @@ def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm
         plotavg = 1
         fn = fin1
         fn2 = fin2
-    fn = fn - fn.mean(axis = 0)
+    # fn = fn - fn.mean(axis = 0)
     fn2 = fn2 - fn2.mean(axis = 0)
     ## Read Para ##
     if header['foff'] < 0:
@@ -218,17 +218,21 @@ def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm
     axes[0,1].set_facecolor('k')
     axes[1,1].set_facecolor('k')
     axes[1,1].tick_params(colors='w')
-    axes[0,0].set_xticks(np.arange(100, 901, 100))    
-    axes[1,0].set_xticks(np.arange(100, 901, 100))     
-    axes[2,0].set_xticks(np.arange(0, 1001, 100)*plotavg*avg*smpt*1e-6) 
-    timetick = ['%.2f'%oi for oi in np.arange(0, 1001, 100)*plotavg*avg*smpt*1e-6 + offset]    
+    # axes[0,0].set_xticks(np.arange(100, 901, 100))    
+    # axes[1,0].set_xticks(np.arange(100, 901, 100))     
+    # axes[2,0].set_xticks(np.arange(0, 1001, 100)*plotavg*avg*smpt*1e-6) 
+    # timetick = ['%.2f'%oi for oi in np.arange(0, 1001, 100)*plotavg*avg*smpt*1e-6 + offset] 
+    axes[0,0].set_xticks(np.arange(plotrange/8, plotrange*7/8+1, plotrange/8))    
+    axes[1,0].set_xticks(np.arange(plotrange/8, plotrange*7/8+1, plotrange/8))     
+    axes[2,0].set_xticks(np.arange(0, plotrange+1, plotrange/8)*plotavg*avg*smpt*1e-6) 
+    timetick = ['%.2f'%oi for oi in np.arange(0, plotrange+1, plotrange/8)*plotavg*avg*smpt*1e-6 + offset]    
     axes[2,0].set_xticklabels(timetick)
     ## Plot Top Flux ##
     axes[0,0].plot(np.arange(0, smaples), (fn2.mean(axis=1)), color='w', linewidth=1)
     axes[0,0].set_ylabel("Flux", color='w')    
     axes[0,0].set_xlim(0, smaples)
     axes[0,0].yaxis.get_major_formatter().set_powerlimits((0,1))
-    fig.text(0.875, 0.86, 'MAX %4.3f'%(fn2.mean(axis=1).max()), color='1')
+    fig.text(0.875, 0.86, 'MAX %4.3f'%(maxsigma), color='1')
     ## Plot Raw data ##
     re1 = axes[2,0].imshow(np.transpose(fn), aspect = 'auto', origin = 'lower',
             extent = [0, smaples*plotavg*avg*smpt*1e-6, ymin, ymax],

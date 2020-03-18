@@ -12,7 +12,7 @@ import torch
 
 def frbplot(filen, ststart):
     #### Read Config File ####
-    (_, NSMAX, _, _, _, tthresh, IGNORE, winsize, choff_low, choff_high, plotpes,
+    (THRESH, NSMAX, _, _, _, tthresh, IGNORE, winsize, choff_low, choff_high, plotpes,
         plotbc, plotime, plotrange, plotDM, average, freqavg, useGPU, BlockSize,
         ) = step_lib_comm.readini("frbcfg.ini")
     choff_high = choff_high//freqavg
@@ -20,6 +20,8 @@ def frbplot(filen, ststart):
     #### READ HEADER ####
     _, rst_filen = os.path.split(filen)
     ispsrfits = False
+    headsize = 0
+    MAXSNR = 0
     if filen.endswith(".fil"):
         header, headsize = readfil.read_header(filen)
     elif filen.endswith(".fits"):
@@ -49,6 +51,7 @@ def frbplot(filen, ststart):
     plot_des = np.zeros((sample, nchan-choff_low-choff_high), dtype=np.float32)
     med = np.zeros((numblock, 1), dtype=np.float32)
     rms = np.zeros(numblock, dtype=np.float32)
+    data_psr = np.zeros((sample, nchan), dtype=np.float32)
 
     # calc time to samples #
     for i in range(len(plotime)):
@@ -72,7 +75,7 @@ def frbplot(filen, ststart):
 
     # Read PSRFITS #
     if ispsrfits: # PSRFITS #
-        psrdata = psrdata.reshape(sample, average, nchan, freqavg).mean(axis=(1,3))
+        data_psr = psrdata[:totalsm].reshape(sample, average, nchan, freqavg).mean(axis=(1,3))
 
     # Calc Block Number #
     Blockwz = BlockSize*1024*1024//(nchan*4*winsize)
@@ -121,7 +124,7 @@ def frbplot(filen, ststart):
             # read file #
             # print(block_tlsm, block_sm, block_nb, header_offset)
             if ispsrfits: # PSRFITS
-                data_raw = psrdata[bnum*Blocksm: bnum*Blocksm+block_tlsm]
+                data_raw = data_psr[bnum*Blocksm: bnum*Blocksm+block_tlsm]
             else:
                 data_raw = step_lib_comm.read_file(filen, data_raw, numbits, header_offset, 
                                 block_tlsm*average*totalch, block_tlsm, average, nchan, freqavg, tstart)
@@ -209,24 +212,34 @@ def frbplot(filen, ststart):
                 sys.stdout.flush() 
 
             # sub plot #
-            if BlockNum != 1:
-                if bnum == 0:
-                    # print("First Block", Blocksm, block_tlsm)
-                    splt.plotraw((plot_rfi[Blocksm: block_tlsm])[:, ::-1], 
-                                (plot_des[Blocksm: block_tlsm])[:, ::-1], 
-                                (block_tlsm-Blocksm), rst_filen, average, freqavg, nchan, header,  
-                                (block_tlsm-Blocksm)*average, choff_low, choff_high, pdf, plotpes, 
-                                ispsrfits, plotDM, plotbc, 0) 
+            # if BlockNum != 1:                
+            #     if bnum == 0:
+            #         # print("First Block", Blocksm, block_tlsm)
+            #         splt.plotraw((plot_rfi[Blocksm: block_tlsm])[:, ::-1], 
+            #                     (plot_des[Blocksm: block_tlsm])[:, ::-1], 
+            #                     (block_tlsm-Blocksm), rst_filen, average, freqavg, nchan, header,  
+            #                     (block_tlsm-Blocksm)*average, choff_low, choff_high, pdf, plotpes, 
+            #                     ispsrfits, plotDM, plotbc, 0, winsize) 
             for nb in range(block_nb):
-            # splt.plotraw((plot_rfi[bnum*Blocksm: bnum*Blocksm+block_sm])[:, ::-1], 
-            #             (plot_des[bnum*Blocksm: bnum*Blocksm+block_sm])[:, ::-1], 
-            #             block_sm, rst_filen, average, freqavg, nchan, header, block_sm*average, 
-            #             choff_low, choff_high, pdf, plotpes, ispsrfits, plotDM, plotbc, bnum*Blocksm*header['tsamp']*average) 
                 plot_offset = bnum*Blocksm + nb*winsize
-                splt.plotraw((plot_rfi[plot_offset: plot_offset + winsize])[:, ::-1], 
-                            (plot_des[plot_offset: plot_offset + winsize])[:, ::-1], 
-                            winsize, rst_filen, average, freqavg, nchan, header, winsize*average, 
-                            choff_low, choff_high, pdf, plotpes, ispsrfits, plotDM, plotbc, plot_offset*header['tsamp']*average)  
+                sigma = (plot_des[plot_offset: plot_offset + winsize].copy().mean(axis=1) -
+                        med[bnum*Blockwz + nb]*maxbc)/(rms[bnum*Blockwz + nb]*np.sqrt(maxbc))
+                maxsigma = np.max(sigma)
+                if MAXSNR < maxsigma: 
+                    MAXSNR = maxsigma
+                if maxsigma > THRESH :
+                    print("maxsigma =", maxsigma, "Block =", bnum,
+                        "window =", nb)
+                    sys.stdout.flush()
+                # splt.plotraw((plot_rfi[bnum*Blocksm: bnum*Blocksm+block_sm])[:, ::-1], 
+                #             (plot_des[bnum*Blocksm: bnum*Blocksm+block_sm])[:, ::-1], 
+                #             block_sm, rst_filen, average, freqavg, nchan, header, block_sm*average, 
+                #             choff_low, choff_high, pdf, plotpes, ispsrfits, plotDM, plotbc, bnum*Blocksm*header['tsamp']*average)                    
+                    splt.plotraw((plot_rfi[plot_offset: plot_offset + winsize])[:, ::-1], 
+                                (plot_des[plot_offset: plot_offset + winsize])[:, ::-1], 
+                                winsize, rst_filen, average, freqavg, nchan, header, winsize*average, 
+                                choff_low, choff_high, pdf, plotpes, ispsrfits, plotDM, plotbc, 
+                                plot_offset*header['tsamp']*average, winsize, maxsigma)  
 
         #### Plot PDF File ####
     # with PdfPages('PLOT'+rst_filen+'.'+str(header['ibeam'])+'.pdf') as pdf:
@@ -265,7 +278,8 @@ def frbplot(filen, ststart):
                             maxbc, choff_low, choff_high, pdf, plotpes, ispsrfits)
         # Plot Raw and RRI data #
         splt.plotraw(plot_rfi[:, ::-1], plot_des[:, ::-1], sample, rst_filen, average, freqavg, 
-                nchan, header, totalsm, choff_low, choff_high, pdf, plotpes, ispsrfits, plotDM, plotbc, 0)
+                nchan, header, totalsm, choff_low, choff_high, pdf, plotpes, ispsrfits, plotDM, plotbc, 
+                0, winsize, MAXSNR)
     print("Save PDF %.2f"%(time.time() - tstart))
     sys.stdout.flush()   
 
