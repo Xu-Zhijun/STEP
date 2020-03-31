@@ -140,8 +140,8 @@ def frbplot(filen, ststart):
                 data_des = torch.zeros((block_tlsm, nchan-choff_low-choff_high), dtype=float, device=cuda)
 
                 # Cleanning #
-                data_tmp = step_lib_comm.cleanning(data_raw, tthresh, nchan, 
-                        choff_low ,choff_high, block_nb, winsize, block_tlsm)
+                data_tmp = step_lib_comm.cleanning(data_raw, tthresh, nchan, choff_low ,choff_high, 
+                            block_nb, winsize, block_tlsm, IGNORE, plotbc)
                 data_rfi = torch.from_numpy(data_tmp).cuda()
                 # step_lib_comm.printcuda(cuda)
                 print("%d/%d Clean %.2f"%(bnum+1, BlockNum, time.time() - tstart))
@@ -164,18 +164,20 @@ def frbplot(filen, ststart):
                 sys.stdout.flush()
 
                 # Smoothing #
-                if bnum == 0 and BlockNum != 1:
-                    plot_rfi[: block_tlsm] = np.array(
-                                            step_lib_comm.convolve_gpu(data_rfi, int(plotbc)).cpu())
-                    plot_des[: block_tlsm] = np.array(
-                                            step_lib_comm.convolve_gpu(data_des, int(plotbc)).cpu())                    
-                else:
-                    plot_rfi[bnum*Blocksm: bnum*Blocksm+block_sm] = np.array(
-                                            step_lib_comm.convolve_gpu(data_rfi[: block_sm], int(plotbc)).cpu())
-                    plot_des[bnum*Blocksm: bnum*Blocksm+block_sm] = np.array(
-                                            step_lib_comm.convolve_gpu(data_des[: block_sm], int(plotbc)).cpu())
-                print("%d/%d Smoothing %.2f"%(bnum+1, BlockNum, time.time() - tstart))
-                sys.stdout.flush()    
+                plot_rfi = np.array(data_rfi.cpu())
+                plot_des = np.array(data_des.cpu())
+                # if bnum == 0 and BlockNum != 1:
+                #     plot_rfi[: block_tlsm] = np.array(
+                #                             step_lib_comm.convolve_gpu(data_rfi, int(plotbc)).cpu())
+                #     plot_des[: block_tlsm] = np.array(
+                #                             step_lib_comm.convolve_gpu(data_des, int(plotbc)).cpu())                    
+                # else:
+                #     plot_rfi[bnum*Blocksm: bnum*Blocksm+block_sm] = np.array(
+                #                             step_lib_comm.convolve_gpu(data_rfi[: block_sm], int(plotbc)).cpu())
+                #     plot_des[bnum*Blocksm: bnum*Blocksm+block_sm] = np.array(
+                #                             step_lib_comm.convolve_gpu(data_des[: block_sm], int(plotbc)).cpu())
+                # print("%d/%d Smoothing %.2f"%(bnum+1, BlockNum, time.time() - tstart))
+                # sys.stdout.flush()    
             else:
                 # init array #
                 data_rfi = np.zeros((block_tlsm, nchan-choff_low-choff_high), dtype=np.float32)
@@ -183,7 +185,7 @@ def frbplot(filen, ststart):
 
                 # Cleanning #
                 data_rfi = step_lib_comm.cleanning(data_raw, tthresh, nchan, choff_low ,choff_high, 
-                            block_nb, winsize, block_tlsm)
+                            block_nb, winsize, block_tlsm, IGNORE, plotbc)
                 print("%d/%d Clean %.2f"%(bnum+1, BlockNum, time.time() - tstart))
                 sys.stdout.flush()
 
@@ -202,14 +204,16 @@ def frbplot(filen, ststart):
                 sys.stdout.flush()
 
                 # Smoothing #
-                if bnum == 0 and BlockNum != 1:
-                    plot_rfi[: block_tlsm] = step_lib_comm.convolve(data_rfi, int(plotbc))
-                    plot_des[: block_tlsm] = step_lib_comm.convolve(data_des, int(plotbc))
-                else:
-                    plot_rfi[bnum*Blocksm: bnum*Blocksm+block_sm] = step_lib_comm.convolve(data_rfi[: block_sm], int(plotbc))
-                    plot_des[bnum*Blocksm: bnum*Blocksm+block_sm] = step_lib_comm.convolve(data_des[: block_sm], int(plotbc))
-                print("%d/%d Smoothing %.2f"%(bnum+1, BlockNum, time.time() - tstart))
-                sys.stdout.flush() 
+                plot_rfi = data_rfi
+                plot_des = data_des
+                # if bnum == 0 and BlockNum != 1:
+                #     plot_rfi[: block_tlsm] = step_lib_comm.convolve(data_rfi, int(plotbc))
+                #     plot_des[: block_tlsm] = step_lib_comm.convolve(data_des, int(plotbc))
+                # else:
+                #     plot_rfi[bnum*Blocksm: bnum*Blocksm+block_sm] = step_lib_comm.convolve(data_rfi[: block_sm], int(plotbc))
+                #     plot_des[bnum*Blocksm: bnum*Blocksm+block_sm] = step_lib_comm.convolve(data_des[: block_sm], int(plotbc))
+                # print("%d/%d Smoothing %.2f"%(bnum+1, BlockNum, time.time() - tstart))
+                # sys.stdout.flush() 
 
             # sub plot #
             # if BlockNum != 1:                
@@ -223,7 +227,10 @@ def frbplot(filen, ststart):
             for nb in range(block_nb):
                 plot_offset = bnum*Blocksm + nb*winsize
                 sigma = (plot_des[plot_offset: plot_offset + winsize].copy().mean(axis=1) -
-                        med[bnum*Blockwz + nb]*maxbc)/(rms[bnum*Blockwz + nb]*np.sqrt(maxbc))
+                        med[bnum*Blockwz + nb])/rms[bnum*Blockwz + nb]
+                # sigma = (plot_des[plot_offset: plot_offset + winsize].copy().mean(axis=1) -
+                #         med[bnum*Blockwz + nb]*maxbc)/(rms[bnum*Blockwz + nb]*np.sqrt(maxbc))
+                # print(sigma.shape, sigma)
                 maxsigma = np.max(sigma)
                 if MAXSNR < maxsigma: 
                     MAXSNR = maxsigma
@@ -238,48 +245,49 @@ def frbplot(filen, ststart):
                     splt.plotraw((plot_rfi[plot_offset: plot_offset + winsize])[:, ::-1], 
                                 (plot_des[plot_offset: plot_offset + winsize])[:, ::-1], 
                                 winsize, rst_filen, average, freqavg, nchan, header, winsize*average, 
-                                choff_low, choff_high, pdf, plotpes, ispsrfits, plotDM, plotbc, 
+                                choff_low, choff_high, pdf, plotpes, ispsrfits, plotDM, 1, #plotbc, 
                                 plot_offset*header['tsamp']*average, winsize, maxsigma)  
 
         #### Plot PDF File ####
-    # with PdfPages('PLOT'+rst_filen+'.'+str(header['ibeam'])+'.pdf') as pdf:
-        # Calc size of plot #
-        smpmax = int(delay[-1]*plotrange)
-        if smpmax < 250:
-            smpmax = 250
-        else:
-            smpmax = 500 # smpmax//2*2
-        
-        for i in range(len(plotime)):
-            if maxsm[i] > sample:
-                print("PlotTime =", plotime[i], "exceeded the maximum time of the file", 
-                        sample*header['tsamp']*average)
-                sys.stdout.flush()
-                continue
-            winsel = int(maxsm[i] / winsize)
-            if smpmax//2*4 > sample:
-                xlim = 0
-                xmax = sample
-                smpmax = sample//2
-            elif maxsm[i] + smpmax//2*3 > sample:
-                xlim = sample - smpmax*2
-                xmax = sample
-            elif maxsm[i] - smpmax//2  < 0:
-                xlim = 0
-                xmax = smpmax*2
+        if len(plotime) != 0:
+        # with PdfPages('PLOT'+rst_filen+'.'+str(header['ibeam'])+'.pdf') as pdf:
+            # Calc size of plot #
+            smpmax = int(delay[-1]*plotrange)
+            if smpmax < 250:
+                smpmax = 250
             else:
-                xlim = maxsm[i] - smpmax//2
-                xmax = maxsm[i] + smpmax//2*3
+                smpmax = 500 # smpmax//2*2
+            
+            for i in range(len(plotime)):
+                if maxsm[i] > sample:
+                    print("PlotTime =", plotime[i], "exceeded the maximum time of the file", 
+                            sample*header['tsamp']*average)
+                    sys.stdout.flush()
+                    continue
+                winsel = int(maxsm[i] / winsize)
+                if smpmax//2*4 > sample:
+                    xlim = 0
+                    xmax = sample
+                    smpmax = sample//2
+                elif maxsm[i] + smpmax//2*3 > sample:
+                    xlim = sample - smpmax*2
+                    xmax = sample
+                elif maxsm[i] - smpmax//2  < 0:
+                    xlim = 0
+                    xmax = smpmax*2
+                else:
+                    xlim = maxsm[i] - smpmax//2
+                    xmax = maxsm[i] + smpmax//2*3
 
-            # Plot Raw Dedispersion #
-            splt.plotdmraw(plot_rfi[int(xlim+int(delay[-1]//2)): int(xmax+int(delay[-1]//2)),:], plot_des[int(xlim): int(xmax),:], 
-                            maxsm[i], plotDM, rst_filen, average, freqavg, med[winsel], rms[winsel],
-                            nchan-choff_low-choff_high, sample, smpmax, header, totalsm, delay, 
-                            maxbc, choff_low, choff_high, pdf, plotpes, ispsrfits)
-        # Plot Raw and RRI data #
-        splt.plotraw(plot_rfi[:, ::-1], plot_des[:, ::-1], sample, rst_filen, average, freqavg, 
-                nchan, header, totalsm, choff_low, choff_high, pdf, plotpes, ispsrfits, plotDM, plotbc, 
-                0, winsize, MAXSNR)
+                # Plot Raw Dedispersion #
+                splt.plotdmraw(plot_rfi[int(xlim+int(delay[-1]//2)): int(xmax+int(delay[-1]//2)),:], plot_des[int(xlim): int(xmax),:], 
+                                maxsm[i], plotDM, rst_filen, average, freqavg, med[winsel], rms[winsel],
+                                nchan-choff_low-choff_high, sample, smpmax, header, totalsm, delay, 
+                                maxbc, choff_low, choff_high, pdf, plotpes, ispsrfits)
+            # Plot Raw and RRI data #
+            splt.plotraw(plot_rfi[:, ::-1], plot_des[:, ::-1], sample, rst_filen, average, freqavg, 
+                    nchan, header, totalsm, choff_low, choff_high, pdf, plotpes, ispsrfits, plotDM, plotbc, 
+                    0, winsize, MAXSNR)
     print("Save PDF %.2f"%(time.time() - tstart))
     sys.stdout.flush()   
 

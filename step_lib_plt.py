@@ -44,7 +44,8 @@ def plotdmraw(finn, dess, pltime, pldm, filname, avg, freqavg, med, rms, totalch
         else:
             machine_id = 'Unknow'
     #### Clac MaxSNR ####
-    snr = (dess[:smpmax].copy().mean(axis=1)-med*maxbc)/(rms*np.sqrt(maxbc))
+    # snr = (dess[:smpmax].copy().mean(axis=1)-med*maxbc)/(rms*np.sqrt(maxbc))
+    snr = (dess[:smpmax].copy().mean(axis=1)-med)/rms
     maxsigma = np.max(snr)
     sigma = snr[smpmax//2]
     sampleoff = (np.argmax(snr) - smpmax//2)*smpt*1e-6*avg

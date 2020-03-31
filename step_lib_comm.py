@@ -79,7 +79,9 @@ def readini(inifile):
         elif 'RFITHR' in all_lines[i]:
             RFITHR = float(all_lines[i].split()[2])
         elif 'IGNORE' in all_lines[i]:
-            IGNORE = float(all_lines[i].split()[2])
+            # IGNORE = int(all_lines[i].split()[2])
+            for s in range(len(all_lines[i].split()) - 2):
+                IGNORE.append(all_lines[i].split()[2+s]) 
         elif 'WINDOWSIZE' in all_lines[i]:
             WINDOWSIZE = int(all_lines[i].split()[2])
         elif 'CHOFF_LOW' in all_lines[i]:
@@ -161,29 +163,37 @@ def mad_gpu(din, nbl, wsize):
     rms, _ = torch.median(torch.abs(din-med), 1)
     return med, 1.4826*rms
 
-def cleanning(din, tthresh, totalch, choff_low, choff_high, nbl, wsize, sample):
-    #### Remove RFI in time ####
+def cleanning(din, tthresh, totalch, choff_low, choff_high, nbl, wsize, sample, ignore, plotbc):
+    #### Remove offset channel ####
     nch = totalch-choff_low-choff_high
-    data_rfi = din.copy()[:, choff_high: totalch-choff_low]
+    data_conv = din.copy()[:, choff_high: totalch-choff_low]
+    #### Convolve ####
+    data_rfi = convolve(data_conv, int(plotbc))
+    #### Remove RFI in time ####
+    med_rfi = np.median(data_rfi.copy(), axis=1)
+    med_tim = np.median(data_rfi.copy(), axis=0)
     # med, rms = mad(data_rfi, nbl, wsize)
     # sigma = ((data_rfi.copy().mean(axis = 1).reshape(nbl, wsize) - med
     #             )/rms.reshape(nbl, 1)).reshape(-1)
     # # data_rfi[np.where(sigma > tthresh)] = np.random.chisquare(wsize, 
     # #                     nch)/wsize*np.sqrt((med**2).mean())
     # data_rfi[np.where(sigma > tthresh)] =  data_rfi.copy().mean(axis=0)
+    data_time = data_rfi.copy().mean(axis= 1)
+    med_time = np.median(data_time)
+    rms_time = np.median(np.abs(data_time - med_time))
+    sigma_time = ((data_time - med_time)/rms_time).reshape(-1)
+    data_rfi[np.where(sigma_time > tthresh)] = med_tim
 
     #### Remove RFI in frequency ####
-    # tmp_frq = np.sort(data_rfi.copy().mean(axis= 0), axis=0)  
-    # med_frq = tmp_frq[nch//2]
-    # rms_frq = np.sort(np.abs(tmp_frq - med_frq))[nch//2]
-    # sigma_frq = ((data_rfi.copy().mean(axis = 0) - med_frq)/rms_frq).reshape(-1)
-    # data_rfi.transpose()[np.where(sigma_frq > tthresh)] = np.random.chisquare(nch, 
-    #                     sample)/nch*np.sqrt((med_frq**2).mean())
-    data_frq = data_rfi.copy().mean(axis= 0)
-    med_frq = np.median(data_frq)
-    rms_frq = np.median(np.abs(data_frq - med_frq))
-    sigma_frq = ((data_frq - med_frq)/rms_frq).reshape(-1)
-    data_rfi.transpose()[np.where(sigma_frq > tthresh)] = np.median(data_rfi.copy(), axis=1)
+    # data_frq = data_rfi.copy().mean(axis= 0)
+    # med_frq = np.median(data_frq)
+    # rms_frq = np.median(np.abs(data_frq - med_frq))
+    # sigma_frq = ((data_frq - med_frq)/rms_frq).reshape(-1)
+    # data_rfi.transpose()[np.where(sigma_frq > tthresh)] = med_rfi
+    # print(med_rfi.shape, data_rfi.transpose().shape, ignore)
+    for i in range(len(ignore)):
+        data_rfi.transpose()[int(ignore[i])-2: int(ignore[i])+3] = (med_rfi.reshape(1, -1)).repeat(5, axis=0)
+    # data_rfi.transpose()[ignore] = med_rfi
     return data_rfi
 
 def cleanning_gpu(din, tthresh, totalch, choff_low, choff_high, nbl, wsize, sample):
