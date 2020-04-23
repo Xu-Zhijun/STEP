@@ -43,7 +43,6 @@ def frbplot(filen, ststart):
     nchan = totalch//freqavg
     smptm *= average
     maxbc = plotbc
-
     # Init #
     maxsm = np.zeros(len(plotime))
     data_raw = np.zeros((sample, nchan), dtype=np.float32)
@@ -225,7 +224,7 @@ def frbplot(filen, ststart):
             #                     (block_tlsm-Blocksm)*average, choff_low, choff_high, pdf, plotpes, 
             #                     ispsrfits, plotDM, plotbc, 0, winsize) 
             for nb in range(block_nb):
-                plot_offset = bnum*Blocksm + nb*winsize
+                plot_offset = nb*winsize #+ bnum*Blocksm
                 sigma = (plot_des[plot_offset: plot_offset + winsize].copy().mean(axis=1) -
                         med[bnum*Blockwz + nb])/rms[bnum*Blockwz + nb]
                 # sigma = (plot_des[plot_offset: plot_offset + winsize].copy().mean(axis=1) -
