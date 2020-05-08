@@ -1,0 +1,15 @@
+#! /bin/bash
+
+#SBATCH --export=ALL
+#SBATCH --output=step.out
+#SBATCH --clusters=chess
+#SBATCH --partition=all-gpu
+#SBATCH --cpus-per-task=1
+#SBATCH --nice=0
+#SBATCH --nice=0
+#SBATCH --gres=gpu:1
+
+rm *.pdf
+module use /home/app/modulefiles
+module load python/cpu-3.6.5
+srun -p all-gpu -N 1 -t 800 python3 /o9000/MWA/FRB/step/step_plotraw.py
