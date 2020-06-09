@@ -169,6 +169,9 @@ def cleanning(din, tthresh, totalch, choff_low, choff_high, nbl, wsize, sample, 
     data_conv = din.copy()[:, choff_high: totalch-choff_low]
     #### Convolve ####
     data_rfi = convolve(data_conv, int(plotbc))
+    #### Ignore channels ####
+    for i in range(len(ignore)):
+        data_rfi.transpose()[int(ignore[i])-2: int(ignore[i])+3] = (med_rfi.reshape(1, -1)).repeat(5, axis=0)
     #### Remove RFI in time ####
     med_rfi = np.median(data_rfi.copy(), axis=1)
     med_tim = np.median(data_rfi.copy(), axis=0)
@@ -178,10 +181,9 @@ def cleanning(din, tthresh, totalch, choff_low, choff_high, nbl, wsize, sample, 
     # # data_rfi[np.where(sigma > tthresh)] = np.random.chisquare(wsize, 
     # #                     nch)/wsize*np.sqrt((med**2).mean())
     # data_rfi[np.where(sigma > tthresh)] =  data_rfi.copy().mean(axis=0)
-    data_time = data_rfi.copy().mean(axis= 1)
-    med_time = np.median(data_time)
-    rms_time = np.median(np.abs(data_time - med_time))
-    sigma_time = ((data_time - med_time)/rms_time).reshape(-1)
+    data_time = data_rfi.copy().mean(axis= 1).reshape(nbl, wsize)
+    med_time, rms_time = mad(data_time, nbl, wsize)
+    sigma_time = ((data_time - med_time)/rms_time.reshape(nbl, 1)).reshape(-1)
     data_rfi[np.where(sigma_time > tthresh)] = med_tim
 
     #### Remove RFI in frequency ####
@@ -191,8 +193,6 @@ def cleanning(din, tthresh, totalch, choff_low, choff_high, nbl, wsize, sample, 
     # sigma_frq = ((data_frq - med_frq)/rms_frq).reshape(-1)
     # data_rfi.transpose()[np.where(sigma_frq > tthresh)] = med_rfi
     # print(med_rfi.shape, data_rfi.transpose().shape, ignore)
-    for i in range(len(ignore)):
-        data_rfi.transpose()[int(ignore[i])-2: int(ignore[i])+3] = (med_rfi.reshape(1, -1)).repeat(5, axis=0)
     # data_rfi.transpose()[ignore] = med_rfi
     return data_rfi
 

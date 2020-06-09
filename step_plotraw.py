@@ -67,9 +67,11 @@ def frbplot(filen, ststart):
         lowch = header['fch1']*1e-3 + chbwd*freqavg*choff_low
     chfrq = np.arange(higch, lowch, -chbwd*freqavg)
     delay = (4148.741601*plotDM*(chfrq**(-2) - (higch)**(-2))/smptm).round()
-
-    print("Start %s Nchan:%d Nbits:%d TotalSample:%d TotalTime:%.2f sec, Maxdelay:%d"%(
-            rst_filen, totalch, numbits, totalsm, totalsm*header['tsamp'], delay[-1]))
+    # print(plotDM, lowch, higch, smptm, 4148.741601*323.2*(0.200**(-2) - (0.2008)**(-2)))
+    # exit()
+    delayMax = math.ceil(delay[-1]/winsize)*winsize
+    print("Start %s Nchan:%d Nbits:%d TotalSample:%d TotalTime:%.2f sec, Maxdelay:%d, DelayMax:%d"%(
+            rst_filen, totalch, numbits, totalsm, totalsm*header['tsamp'], delay[-1], delayMax))
     sys.stdout.flush()
 
     # Read PSRFITS #
@@ -85,7 +87,7 @@ def frbplot(filen, ststart):
         BlockNum = 1
     else:
         BlockNum = math.ceil(sample/Blocksm)
-    if Blocksm < int(delay[-1]):
+    if Blocksm < delayMax:
         print("Warning!!! Max delay is larger than Block Size!!!!")
         sys.stdout.flush()
     # print("Blocksm =", Blocksm, BlockNum, (BlockNum*Blocksm-sample)/winsize, Blocksm*header['tsamp'])    
@@ -95,12 +97,12 @@ def frbplot(filen, ststart):
     with PdfPages('PLOT'+rst_filen+'.'+str(header['ibeam'])+'.pdf') as pdf:
         for bnum in range(BlockNum):
             # calc current blocksize #
-            if (bnum+1)*Blocksm + int(delay[-1])> sample:
+            if (bnum+1)*Blocksm + delayMax> sample:
                 block_tlsm = sample - bnum*Blocksm
                 # block_sm = sample - bnum*Blocksm
                 # block_nb = block_sm//winsize
             else:
-                block_tlsm = Blocksm + int(delay[-1])
+                block_tlsm = Blocksm + delayMax
 
             if (bnum+1)*Blocksm > sample:
                 block_sm = sample - bnum*Blocksm
@@ -140,7 +142,7 @@ def frbplot(filen, ststart):
 
                 # Cleanning #
                 data_tmp = step_lib_comm.cleanning(data_raw, tthresh, nchan, choff_low ,choff_high, 
-                            block_nb, winsize, block_tlsm, IGNORE, plotbc)
+                            block_tlsm//winsize, winsize, block_tlsm, IGNORE, plotbc)
                 data_rfi = torch.from_numpy(data_tmp).cuda()
                 # step_lib_comm.printcuda(cuda)
                 print("%d/%d Clean %.2f"%(bnum+1, BlockNum, time.time() - tstart))
@@ -163,7 +165,7 @@ def frbplot(filen, ststart):
                 sys.stdout.flush()
 
                 # Smoothing #
-                plot_rfi = np.array(data_rfi.cpu())
+                plot_rfi = data_raw[:, choff_high: nchan-choff_low] #np.array(data_rfi.cpu())
                 plot_des = np.array(data_des.cpu())
                 # if bnum == 0 and BlockNum != 1:
                 #     plot_rfi[: block_tlsm] = np.array(
@@ -244,7 +246,7 @@ def frbplot(filen, ststart):
                     splt.plotraw((plot_rfi[plot_offset: plot_offset + winsize])[:, ::-1], 
                                 (plot_des[plot_offset: plot_offset + winsize])[:, ::-1], 
                                 winsize, rst_filen, average, freqavg, nchan, header, winsize*average, 
-                                choff_low, choff_high, pdf, plotpes, ispsrfits, plotDM, 1, #plotbc, 
+                                choff_low, choff_high, pdf, plotpes, ispsrfits, plotDM, plotbc, 
                                 plot_offset*header['tsamp']*average, winsize, maxsigma)  
 
         #### Plot PDF File ####
