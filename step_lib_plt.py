@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import readfil
 from matplotlib.colors import  ListedColormap
 from matplotlib import cm
+import random
+
 def plotwinx(axes, totalch, fn):
     ax = axes.twinx()
     ax.set_ylabel("Channel", color='w')
@@ -26,7 +28,7 @@ def plotdmraw(finn, dess, pltime, pldm, filname, avg, freqavg, med, rms, totalch
         ymin = header['fch1'] + header['foff']*header['nchans'] - header['foff']*choff_low*freqavg
     else:
         ymax = header['fch1'] + header['foff']*header['nchans'] - header['foff']*choff_high*freqavg
-        ymin = header['fch1'] + header['foff']*choff_low*freqavg   
+        ymin = header['fch1'] + header['foff']*choff_low*freqavg
     smpt = header['tsamp']*1e6
     freqctr = (ymax+ymin)/2
     timeoff = pltime*header['tsamp']*avg
@@ -262,4 +264,54 @@ def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm
     # axes[1,1].set_xlabel("Flux", color='w')
     ## Save FIG File ##
     pdf.savefig(facecolor='k')
+    # plt.savefig('%s.%d.png'%(filname, header['ibeam']), facecolor='k')
     plt.close()
+
+def plotpng(fin1, fin2, smpmax, pngname):
+    viewdw = 336//2
+    fn1  = (fin1[int(smpmax//2-viewdw): int(smpmax//2+viewdw)])[:, ::-1]
+    fn2 = (fin2[int(smpmax//2-viewdw): int(smpmax//2+viewdw)])[:, ::-1]    
+    fn1 = fn1 - fn1.mean(axis = 0)
+    fn2 = fn2 - fn2.mean(axis = 0)
+    fig = plt.figure(figsize=(16, 16), dpi=21,frameon=False)
+    ax = fig.add_axes([0, 0, 1, 1])
+    print(fn1.shape)
+    plt.imshow(np.transpose(fn1), aspect = 'auto', origin = 'lower',
+            cmap = plt.cm.Greys, 
+            interpolation='nearest',) #bilinear
+    plt.savefig("FRB.%s.raw.png"%pngname)
+    exit()
+    plt.imshow(np.transpose(fn2), aspect = 'auto', origin = 'lower',
+            cmap = plt.cm.Greys,
+            interpolation='nearest',) #bilinear
+    plt.savefig("FRB.%s.des.png"%pngname)
+    plt.close()
+
+def fakefrb(fn, winsize, delayint, nofrb, nch, pngname):
+    if not nofrb:
+        frb = np.load('frb.%d.npy'%random.randint(1,8))
+        dm = 200+0.0113*random.randint(0, 35000)
+        delay = (delayint * dm).round()
+        rn_offset = random.randint(int(winsize-delay[-1]-2)//2, int(winsize-delay[-1]-2))
+        # print(int(winsize//2-delay[-1]//2), rn_offset)
+        for i in range(nch):
+            frb_offset = int(delay[i]) + rn_offset
+            fn[frb_offset-1: frb_offset+2, i] = frb[:, i]*(1+0.0001*random.randint(-99, 99))
+    fn = fn[:, ::-1]
+    if nofrb:
+        np.save("npy/nofrb/FRB170906.%s"%(pngname), np.transpose(fn))
+    else:
+        np.save("npy/frb/FRB170906.%s.dm%3.4f"%(pngname, dm), np.transpose(fn))
+    fn = fn - fn.mean(axis = 0)
+    fig = plt.figure(figsize=(16, 16), dpi=21,frameon=False)
+    ax = fig.add_axes([0, 0, 1, 1])
+    # print('Fake FRB ')
+    plt.imshow(np.transpose(fn), aspect = 'auto', origin = 'lower',
+            cmap = plt.cm.Greys, 
+            interpolation='nearest',)     
+    if nofrb:
+        plt.savefig("png/nofrb/FRB170906.%s.png"%(pngname))
+    else:
+        plt.savefig("png/frb/FRB170906.%s.dm%3.4f.png"%(pngname, dm))
+    plt.close()
+    # exit()

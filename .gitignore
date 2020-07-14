@@ -8,3 +8,6 @@ ASKAP/
 SGR/
 *.gif
 *.png
+*.csv
+tools/fastpfd.py
+tools/tr_date.py

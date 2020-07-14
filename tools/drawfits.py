@@ -5,7 +5,7 @@ from astropy.io import fits
 from astropy.table import Table
 # from matplotlib.colors import LogNorm
 cnt_file = 46
-cnt_img = 100
+cnt_img = 50
 dis_data = np.zeros((cnt_file, cnt_img, cnt_img), dtype=float)
 
 fromstart = np.zeros(cnt_file, dtype=float)
@@ -33,7 +33,7 @@ for s in range(cnt_file):
     # hdu_list.info()
     evt_data = Table(hdu_list[0].data)
     for ss in range(cnt_img):
-        dis_data[s, ss] = evt_data.columns[ss+50][50:150]
+        dis_data[s, ss] = evt_data.columns[ss+75][75:125]
 # print(dis_data.shape)
 # while(1):
 for s in range(cnt_file):
@@ -45,6 +45,7 @@ for s in range(cnt_file):
                 cmap = 'plasma')  # viridis, magma, Blues
     pst1 = fig.add_axes([0.91, 0.15, 0.02, 0.7])
     cb1 = fig.colorbar(img_zero_mpl, cax=pst1)
+    axes.grid(True)
     # cbar.ax.set_yticklabels(['1','3','6'])
     plt.suptitle('Number:' + str(s+1) + '  Time:' + fits_times[s] +
         '  FromStart:' + str(fromstart[s])+'min')

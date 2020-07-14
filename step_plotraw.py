@@ -9,6 +9,9 @@ import step_lib_comm
 import step_lib_plt as splt
 from matplotlib.backends.backend_pdf import PdfPages
 import torch
+## Debug ##
+fakefrb = False # Gen training dataset
+fakenofrb = False # Gen without FRB
 
 def frbplot(filen, ststart):
     #### Read Config File ####
@@ -17,6 +20,7 @@ def frbplot(filen, ststart):
         ) = step_lib_comm.readini("frbcfg.ini")
     choff_high = choff_high//freqavg
     choff_low = choff_low//freqavg
+
     #### READ HEADER ####
     _, rst_filen = os.path.split(filen)
     ispsrfits = False
@@ -51,6 +55,7 @@ def frbplot(filen, ststart):
     med = np.zeros((numblock, 1), dtype=np.float32)
     rms = np.zeros(numblock, dtype=np.float32)
     data_psr = np.zeros((sample, nchan), dtype=np.float32)
+    frbsignal = np.zeros((3, nchan), dtype=np.float32)
 
     # calc time to samples #
     for i in range(len(plotime)):
@@ -67,6 +72,7 @@ def frbplot(filen, ststart):
         lowch = header['fch1']*1e-3 + chbwd*freqavg*choff_low
     chfrq = np.arange(higch, lowch, -chbwd*freqavg)
     delay = (4148.741601*plotDM*(chfrq**(-2) - (higch)**(-2))/smptm).round()
+    delayint = 4148.741601*(chfrq**(-2) - (higch)**(-2))/smptm
     # print(plotDM, lowch, higch, smptm, 4148.741601*323.2*(0.200**(-2) - (0.2008)**(-2)))
     # exit()
     delayMax = math.ceil(delay[-1]/winsize)*winsize
@@ -92,7 +98,6 @@ def frbplot(filen, ststart):
         sys.stdout.flush()
     # print("Blocksm =", Blocksm, BlockNum, (BlockNum*Blocksm-sample)/winsize, Blocksm*header['tsamp'])    
     sys.stdout.flush()
-
     #### Main loop ####    
     with PdfPages('PLOT'+rst_filen+'.'+str(header['ibeam'])+'.pdf') as pdf:
         for bnum in range(BlockNum):
@@ -225,25 +230,29 @@ def frbplot(filen, ststart):
             #                     (block_tlsm-Blocksm), rst_filen, average, freqavg, nchan, header,  
             #                     (block_tlsm-Blocksm)*average, choff_low, choff_high, pdf, plotpes, 
             #                     ispsrfits, plotDM, plotbc, 0, winsize) 
-            for nb in range(block_nb):
-                plot_offset = nb*winsize #+ bnum*Blocksm
-                sigma = (plot_des[plot_offset: plot_offset + winsize].copy().mean(axis=1) -
-                        med[bnum*Blockwz + nb])/rms[bnum*Blockwz + nb]
-                # sigma = (plot_des[plot_offset: plot_offset + winsize].copy().mean(axis=1) -
-                #         med[bnum*Blockwz + nb]*maxbc)/(rms[bnum*Blockwz + nb]*np.sqrt(maxbc))
-                # print(sigma.shape, sigma)
-                maxsigma = np.max(sigma)
-                if MAXSNR < maxsigma: 
-                    MAXSNR = maxsigma
-                if maxsigma > THRESH :
-                    print("maxsigma =", maxsigma, "Block =", bnum,
-                        "window =", nb)
-                    sys.stdout.flush()
-                # splt.plotraw((plot_rfi[bnum*Blocksm: bnum*Blocksm+block_sm])[:, ::-1], 
-                #             (plot_des[bnum*Blocksm: bnum*Blocksm+block_sm])[:, ::-1], 
-                #             block_sm, rst_filen, average, freqavg, nchan, header, block_sm*average, 
-                #             choff_low, choff_high, pdf, plotpes, ispsrfits, plotDM, plotbc, bnum*Blocksm*header['tsamp']*average)                    
-                    splt.plotraw((plot_rfi[plot_offset: plot_offset + winsize])[:, ::-1], 
+            if len(plotime) == 0:
+                for nb in range(block_nb):
+                    plot_offset = nb*winsize #+ bnum*Blocksm
+                    sigma = (plot_des[plot_offset: plot_offset + winsize].copy().mean(axis=1) -
+                            med[bnum*Blockwz + nb])/rms[bnum*Blockwz + nb]
+                    # sigma = (plot_des[plot_offset: plot_offset + winsize].copy().mean(axis=1) -
+                    #         med[bnum*Blockwz + nb]*maxbc)/(rms[bnum*Blockwz + nb]*np.sqrt(maxbc))
+                    # print(sigma.shape, sigma)
+                    if fakefrb:
+                        splt.fakefrb((data_raw[plot_offset: plot_offset + winsize])[:, ::-1],
+                        winsize, delayint, fakenofrb, nchan,'%d.%d.%d'%(header['ibeam'], bnum, nb))
+
+                    maxsigma = np.max(sigma)
+                    if MAXSNR < maxsigma: 
+                        MAXSNR = maxsigma
+                    if maxsigma > THRESH :
+                        print("maxsigma =", maxsigma, "Block =", bnum,
+                            "window =", nb)
+                        sys.stdout.flush()                   
+                        
+                        # with PdfPages('PLOT'+rst_filen+'.'+str(header['ibeam'])+'.pdf') as pdf:
+                        # pdf = []
+                        splt.plotraw((plot_rfi[plot_offset: plot_offset + winsize])[:, ::-1], 
                                 (plot_des[plot_offset: plot_offset + winsize])[:, ::-1], 
                                 winsize, rst_filen, average, freqavg, nchan, header, winsize*average, 
                                 choff_low, choff_high, pdf, plotpes, ispsrfits, plotDM, plotbc, 
@@ -253,7 +262,7 @@ def frbplot(filen, ststart):
         if len(plotime) != 0:
         # with PdfPages('PLOT'+rst_filen+'.'+str(header['ibeam'])+'.pdf') as pdf:
             # Calc size of plot #
-            smpmax = int(delay[-1]*plotrange)
+            smpmax = 336 #int(delay[-1]*plotrange)
             if smpmax < 250:
                 smpmax = 250
             else:
@@ -279,18 +288,25 @@ def frbplot(filen, ststart):
                 else:
                     xlim = maxsm[i] - smpmax//2
                     xmax = maxsm[i] + smpmax//2*3
-
+                # save frb #
+                for ts in range(336):
+                    frboffset = int(maxsm[i]) + int(delay[ts])
+                    frbsignal[:, ts] = plot_rfi[frboffset-2:frboffset+1, ts]
+                np.save('frb.%s.%d'%(rst_filen, header['ibeam']), frbsignal)
+                
                 # Plot Raw Dedispersion #
-                splt.plotdmraw(plot_rfi[int(xlim+int(delay[-1]//2)): int(xmax+int(delay[-1]//2)),:], plot_des[int(xlim): int(xmax),:], 
-                                maxsm[i], plotDM, rst_filen, average, freqavg, med[winsel], rms[winsel],
-                                nchan-choff_low-choff_high, sample, smpmax, header, totalsm, delay, 
-                                maxbc, choff_low, choff_high, pdf, plotpes, ispsrfits)
+                splt.plotpng(plot_rfi[int(xlim+int(delay[-1]//2)): int(xmax+int(delay[-1]//2)), :],
+                            plot_des[int(xlim): int(xmax), :], smpmax, rst_filen+'.'+str(header['ibeam']))
+                # splt.plotdmraw(plot_rfi[int(xlim+int(delay[-1]//2)): int(xmax+int(delay[-1]//2)),:], plot_des[int(xlim): int(xmax),:], 
+                #                 maxsm[i], plotDM, rst_filen, average, freqavg, med[winsel], rms[winsel],
+                #                 nchan-choff_low-choff_high, sample, smpmax, header, totalsm, delay, 
+                #                 maxbc, choff_low, choff_high, pdf, plotpes, ispsrfits)
             # Plot Raw and RRI data #
-            splt.plotraw(plot_rfi[:, ::-1], plot_des[:, ::-1], sample, rst_filen, average, freqavg, 
-                    nchan, header, totalsm, choff_low, choff_high, pdf, plotpes, ispsrfits, plotDM, plotbc, 
-                    0, winsize, MAXSNR)
+            # splt.plotraw(plot_rfi[:, ::-1], plot_des[:, ::-1], sample, rst_filen, average, freqavg, 
+            #         nchan, header, totalsm, choff_low, choff_high, pdf, plotpes, ispsrfits, plotDM, plotbc,
+            #         0, winsize, MAXSNR)
     print("Save PDF %.2f"%(time.time() - tstart))
-    sys.stdout.flush()   
+    sys.stdout.flush()
 
 if __name__ == "__main__":
     print("Init...")
@@ -302,6 +318,7 @@ if __name__ == "__main__":
             frbplot(PLOTFILE, tstart)
         else:
             if len(FILENAME) != 0:
+                FILENAME.sort()
                 for FILE in FILENAME:   
                     frbplot(FILE, tstart)
                     print("Finish %s %.2f"%(FILE, time.time() - tstart))

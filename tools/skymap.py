@@ -7,8 +7,10 @@ import matplotlib.pyplot as plt
 data = ascii.read("frbcat.csv", encoding='utf-8')
 
 ra = coord.Angle(data['rop_raj'], unit=u.hour)
-ra = ra.wrap_at(180*u.degree)
+# ra = ra.wrap_at(180*u.degree)
 dec = coord.Angle(data['rop_decj'], unit=u.degree)
+print(ra[0].degree, dec[0].degree)
+exit()
 
 dec_pushchino = dec[np.where(data['telescope'] == 'Pushchino')]
 ra_pushchino = ra[np.where(data['telescope'] == 'Pushchino')]
@@ -28,9 +30,9 @@ ra_utmost = ra[np.where(data['telescope'] == 'UTMOST')]
 dec_out = dec[np.where(dec > 30*u.degree)]
 ra_out = ra[np.where(dec > 30*u.degree)]
 
-frb_out = data['frb_name'][np.where(dec > 30*u.degree)]
-print('FRBs Dec larger than 30: ')
-for i in frb_out: print(i, end='\n')
+# frb_out = data['frb_name'][np.where(dec > 30*u.degree)]
+# print('FRBs Dec larger than 30: ')
+# for i in frb_out: print(i, end='\n')
 
 with plt.rc_context({'axes.edgecolor':'w', 'xtick.color':'w', 'ytick.color':'w', 
     'figure.facecolor':'k'}):
