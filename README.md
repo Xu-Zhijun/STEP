@@ -1,16 +1,52 @@
 # STEP (SHAO TransiEnts Pipeline)
-V1.0 plot pulses in .fil file for giving offset times and DM.
+The goal of this **STEP** is to create a TransiEnts Pipeline based on **CSKAP**(**C**hina **SKA** Regional Centre **P**rototype) system.
 
-# Require
-python3.6+
+The pipeline is written in pure python for flexibility.
 
-numpy
+## Credit
 
-matplotlib
+If you used this software in your search, please cite [@Xu-Zhijun](https://www.github.com/Xu-Zhijun) .
 
-# Setting
+## Contributing
+
+Please feel free to contact [@Xu-Zhijun](https://www.github.com/Xu-Zhijun/STEP) for opening a new issue for bugs, feedback or feature requests.
+
+We welcome code contribution. To add a contribution, please submit a PR.
+
+## Installation
+
+Just use the following command to install the STEP,
+
+```bash
+$ pip install -r requirments.txt
+```
+
+We recommend to use virtualenv to create a virtual python enviroment.
+
+
+## Requirements
+
+**STEP** need the following software:
+
+- python3.6+
+- numpy
+- matplotlib
+
+
+
+## How to Run
+
+### Run in one command
+
+```bash
+$ python step_plotraw.py
+```
+
+In this way you shoulb modify the following configuration in `frbcfg.ini` file.
+
 Modify the frbcfg.ini to set the parameter:
 
+```
 SearchPath  # directory for .fil files
 
 PlotReady   # 1 for Plot, 0 (no function yet)
@@ -36,11 +72,17 @@ CHOFF_LOW   # remove channels from low frequency edge
 CHOFF_HIGH  # remove channels from high frequency edge
 
 WINDOWSIZE  # window size for searching, will change the SNR
+```
 
-# Running
-python step_plotraw.py
+or by using command paramters
 
-# HAVE FUN!
+### Run by using command paramters
+
+TBA
 
 # Acknowledgment
-Thanks scott ransom for presto sigproc.py, github: https://github.com/scottransom/presto
+
+Thanks scott ransom for [presto](https://github.com/scottransom/presto) sigproc.py .
+
+And HAVE FUN with **STEP**.
+
