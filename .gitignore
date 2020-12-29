@@ -11,3 +11,7 @@ SGR/
 *.csv
 tools/fastpfd.py
 tools/tr_date.py
+65m/
+*.pth
+AI/
+.vscode/

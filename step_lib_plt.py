@@ -150,19 +150,20 @@ def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm
     # pink = np.array([0.993248, 0.906157, 0.143936, 1])
     # newcolors[-50:, :] = pink
     # newcmp = ListedColormap(newcolors)
+
     ## Resize data ##
     plotrange = winsize #1024
     if smaples > plotrange:
         plotavg = smaples//plotrange
         smaples = plotrange
         fn  = fin1[: plotavg*smaples, :].reshape(smaples, plotavg, -1).mean(axis=1)
-        fn2 = fin2[: plotavg*smaples, :].reshape(smaples, plotavg, -1).mean(axis=1)
+        fno2 = fin2[: plotavg*smaples, :].reshape(smaples, plotavg, -1).mean(axis=1)
     else:
         plotavg = 1
         fn = fin1
-        fn2 = fin2
+        fno2 = fin2
     # fn = fn - fn.mean(axis = 0)
-    fn2 = fn2 - fn2.mean(axis = 0)
+    fn2 = fno2 - fno2.mean(axis = 0)
     ## Read Para ##
     if header['foff'] < 0:
         ymax = header['fch1']
@@ -259,7 +260,7 @@ def plotraw(fin1, fin2, smaples, filname, avg, freqavg, totalch, header, totalsm
     axes[2,1].set_xticks([0, np.max(fn.mean(axis=0))])
     # axes[2,1].set_xlabel("Flux", color='w')
     ## Plot Dedispersion Flux ##
-    plotwinx(axes[1,1], totalch-choff_low-choff_high, fn2)
+    plotwinx(axes[1,1], totalch-choff_low-choff_high, fno2)
     axes[1,1].set_xticks([0])
     # axes[1,1].set_xlabel("Flux", color='w')
     ## Save FIG File ##
@@ -287,31 +288,40 @@ def plotpng(fin1, fin2, smpmax, pngname):
     plt.savefig("FRB.%s.des.png"%pngname)
     plt.close()
 
-def fakefrb(fn, winsize, delayint, nofrb, nch, pngname):
+def fakefrb(fn, winsize, delayint, nofrb, rfi, nch, pngname):
     if not nofrb:
         frb = np.load('frb.%d.npy'%random.randint(1,8))
-        dm = 200+0.0113*random.randint(0, 35000)
-        delay = (delayint * dm).round()
-        rn_offset = random.randint(int(winsize-delay[-1]-2)//2, int(winsize-delay[-1]-2))
+        frb = np.roll(frb, random.randint(0, nch), axis = 1)
+        median = np.median(fn, axis=1)
+        if rfi:
+            dm = -0.01 * random.randint(0, 40000)
+            delay = (delayint * dm).round()
+            rn_offset = random.randint(int(-delay[-1]+2), int(winsize-2))
+        else:
+            dm = 100 + 0.01 * random.randint(0, 30000)
+            delay = (delayint * dm).round()
+            rn_offset = random.randint(int(winsize-delay[-1]-2)//2, int(winsize-delay[-1]-2))
         # print(int(winsize//2-delay[-1]//2), rn_offset)
         for i in range(nch):
+            frb_in = frb[:, i]*(1+0.00001*random.randint(-999, 999))
+            if frb_in.mean() < median[i]:
+                frb_in = np.random.normal(fn[:, i].mean(), np.std(fn[:, i]), len(frb_in))
             frb_offset = int(delay[i]) + rn_offset
-            fn[frb_offset-1: frb_offset+2, i] = frb[:, i]*(1+0.0001*random.randint(-99, 99))
+            fn[frb_offset-1: frb_offset+2, i] = frb_in
     fn = fn[:, ::-1]
-    if nofrb:
-        np.save("npy/nofrb/FRB170906.%s"%(pngname), np.transpose(fn))
-    else:
-        np.save("npy/frb/FRB170906.%s.dm%3.4f"%(pngname, dm), np.transpose(fn))
     fn = fn - fn.mean(axis = 0)
     fig = plt.figure(figsize=(16, 16), dpi=21,frameon=False)
     ax = fig.add_axes([0, 0, 1, 1])
     # print('Fake FRB ')
     plt.imshow(np.transpose(fn), aspect = 'auto', origin = 'lower',
-            cmap = plt.cm.Greys, 
+            cmap = 'inferno', #plt.cm.Greys, 
             interpolation='nearest',)     
     if nofrb:
-        plt.savefig("png/nofrb/FRB170906.%s.png"%(pngname))
+        plt.savefig("png/raw/%s.png"%(pngname))
+        # print('Save png : ',pngname)
+    elif rfi:
+        plt.savefig("png/rfi/%s.rfi.png"%(pngname))
     else:
-        plt.savefig("png/frb/FRB170906.%s.dm%3.4f.png"%(pngname, dm))
+        plt.savefig("png/frb/%s.dm%3.4f.png"%(pngname, dm))
     plt.close()
     # exit()

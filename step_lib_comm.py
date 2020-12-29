@@ -170,10 +170,14 @@ def cleanning(din, tthresh, totalch, choff_low, choff_high, nbl, wsize, sample, 
     #### Convolve ####
     data_rfi = convolve(data_conv, int(plotbc))
     #### Ignore channels ####
+    channel_med = np.median(data_rfi, axis=1)
     for i in range(len(ignore)):
-        data_rfi.transpose()[int(ignore[i])-2: int(ignore[i])+3] = (med_rfi.reshape(1, -1)).repeat(5, axis=0)
+        for s in range(5):
+            data_rfi.transpose()[int(ignore[i])-2+s] = (
+                np.random.normal(channel_med.mean(), np.std(channel_med), data_rfi.shape[0]))
+            #(med_rfi.reshape(1, -1)).repeat(5, axis=0)
     #### Remove RFI in time ####
-    med_rfi = np.median(data_rfi.copy(), axis=1)
+    # med_rfi = np.median(data_rfi.copy(), axis=1)
     med_tim = np.median(data_rfi.copy(), axis=0)
     # med, rms = mad(data_rfi, nbl, wsize)
     # sigma = ((data_rfi.copy().mean(axis = 1).reshape(nbl, wsize) - med

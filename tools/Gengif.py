@@ -2,16 +2,15 @@ import matplotlib.pyplot as plt
 import imageio
 import os
 
-TIME_GAP = 0.5
+TIME_GAP = 0.75
 Maxnum = 20
-# DIR = "E://Data//SGR//121//png//"
-# DIR = "D://ASKAP-PNG//"
-DIR = "D://My_Designs//Python//FScorr//png//png"
-DIR = "D://文档//工作文档//2020//SKA//SGR//MWA TEL"
-DIR = 'D:/My_Designs/Python/STEP/ASKAP/FRB170906/png/frb'
+
+# DIR = r'D:\My_Designs\AI\frb\test\bk'
+DIR = r'D:\My_Designs\AI\dm'
+
 # gif_name = 'E://Data//SGR//121//test.gif'
 # gif_name = 'D://askap.gif'
-gif_name = 'D://frb.gif'
+gif_name = 'D://dm.gif'
 
 png_files = []
 frames = []
