@@ -10,10 +10,10 @@ import step_lib_plt as splt
 from matplotlib.backends.backend_pdf import PdfPages
 import torch
 ## Debug ##
-plotimage = False # Plot image in given time
-fakefrb = False # Gen training dataset
-fakenofrb = False # Gen without FRB
-fakerfi = False # Gen RFI
+# plotimage = False # Plot image in given time
+# fakefrb = False # Gen training dataset
+# fakenofrb = False # Gen without FRB
+# fakerfi = False # Gen RFI
 
 def frbplot(filen, ststart):
     #### Read Config File ####
@@ -77,7 +77,10 @@ def frbplot(filen, ststart):
     delayint = 4148.741601*(chfrq**(-2) - (higch)**(-2))/smptm
     # print(plotDM, lowch, higch, smptm, 4148.741601*323.2*(0.200**(-2) - (0.2008)**(-2)))
     # exit()
-    delayMax = math.ceil(delay[-1]/winsize)*winsize
+    if plotDM > 0:
+        delayMax = math.ceil(delay[-1]/winsize)*winsize
+    else:
+        delayMax = 0
     print("Start %s Nchan:%d Nbits:%d TotalSample:%d TotalTime:%.2f sec, Maxdelay:%d, DelayMax:%d"%(
             rst_filen, totalch, numbits, totalsm, totalsm*header['tsamp'], delay[-1], delayMax))
     sys.stdout.flush()
@@ -133,6 +136,7 @@ def frbplot(filen, ststart):
             # print(block_tlsm, block_sm, block_nb, header_offset)
             if ispsrfits: # PSRFITS
                 data_raw = data_psr[bnum*Blocksm: bnum*Blocksm+block_tlsm]
+                # data_raw = psrdata[:totalsm, :nchan*freqavg].reshape(sample, average, nchan, freqavg).mean(axis=(1,3))
             else:
                 data_raw = step_lib_comm.read_file(filen, data_raw, numbits, header_offset, 
                                 block_tlsm*average*totalch, block_tlsm, average, nchan, freqavg, tstart)
@@ -193,7 +197,7 @@ def frbplot(filen, ststart):
 
                 # Cleanning #
                 data_rfi = step_lib_comm.cleanning(data_raw, tthresh, nchan, choff_low ,choff_high, 
-                            block_nb, winsize, block_tlsm, IGNORE, plotbc)
+                            block_tlsm//winsize, winsize, block_tlsm, IGNORE, plotbc)
                 print("%d/%d Clean %.2f"%(bnum+1, BlockNum, time.time() - tstart))
                 sys.stdout.flush()
 
@@ -243,10 +247,10 @@ def frbplot(filen, ststart):
                     # sigma = (plot_des[plot_offset: plot_offset + winsize].copy().mean(axis=1) -
                     #         med[bnum*Blockwz + nb]*maxbc)/(rms[bnum*Blockwz + nb]*np.sqrt(maxbc))
                     # print(sigma.shape, sigma)
-                    if fakefrb:
-                        splt.fakefrb((data_raw[plot_offset: plot_offset + winsize]),
-                        winsize, delayint, fakenofrb, fakerfi, nchan,'%s.%d.%d.%d'%(rst_filen, 
-                        header['ibeam'], bnum, nb))
+                    # if fakefrb:
+                    #     splt.fakefrb((data_raw[plot_offset: plot_offset + winsize]),
+                    #     winsize, delayint, fakenofrb, fakerfi, nchan,'%s.%d.%d.%d'%(rst_filen, 
+                    #     header['ibeam'], bnum, nb))
 
                     maxsigma = np.max(sigma)
                     if MAXSNR < maxsigma:
@@ -301,11 +305,11 @@ def frbplot(filen, ststart):
                 np.save('frb.%s.%d'%(rst_filen, header['ibeam']), frbsignal)
                 
                 # Plot Raw Dedispersion #
-                if plotimage:
-                    splt.plotpng(plot_rfi[int(xlim+int(delay[-1]//2)): int(xmax+int(delay[-1]//2)), :],
-                            plot_des[int(xlim): int(xmax), :], smpmax, rst_filen+'.'+str(header['ibeam']))
-                else:
-                    splt.plotdmraw(plot_rfi[int(xlim+int(delay[-1]//2)): int(xmax+int(delay[-1]//2)),:], 
+                # if plotimage:
+                #     splt.plotpng(plot_rfi[int(xlim+int(delay[-1]//2)): int(xmax+int(delay[-1]//2)), :],
+                #             plot_des[int(xlim): int(xmax), :], smpmax, rst_filen+'.'+str(header['ibeam']))
+                # else:
+                splt.plotdmraw(plot_rfi[int(xlim+int(delay[-1]//2)): int(xmax+int(delay[-1]//2)),:], 
                                 plot_des[int(xlim): int(xmax),:], 
                                 maxsm[i], plotDM, rst_filen, average, freqavg, med[winsel], rms[winsel],
                                 nchan-choff_low-choff_high, sample, smpmax, header, totalsm, delay, 

@@ -226,6 +226,39 @@ def cleanning_gpu(din, tthresh, totalch, choff_low, choff_high, nbl, wsize, samp
 #     c = (dn/max)*100+1
 #     print(jd % (c,a,b), end="", flush=True)
 
+def read_psrfits_head(psrfits_file, ststart):
+    """
+    Modified from presto prsfit.py
+    """
+    global nsampsub, nsubints, numpolns, polnorder
+    header = {'ibeam':0, 'nbeams':1,}
+    print("Reading...", psrfits_file, time.time() - ststart)
+    sys.stdout.flush()
+    with open (psrfits_file,'rb') as fn:
+        psr01 = pyfits.open(fn, mode='readonly', memmap=True)
+        fits_header = psr01['PRIMARY'].header
+        sub_header = psr01['SUBINT'].header
+        header['telescope_id'] = fits_header['TELESCOP']
+        header['machine_id'] = fits_header['BACKEND']
+        header['source_name'] = fits_header['SRC_NAME']
+        header['src_raj'] = float(fits_header['RA'].replace(':',''))
+        header['src_dej'] = float(fits_header['DEC'].replace(':',''))
+        header['tstart'] = (fits_header['STT_IMJD'] + fits_header['STT_SMJD']/86400.0 + 
+                            fits_header['STT_OFFS']/86400.0)
+        header['fch1'] = (fits_header['OBSFREQ'] + np.abs(fits_header['OBSBW'])/2.0 - 
+                            np.abs(sub_header['CHAN_BW'])/2.0)
+        header['foff'] = -1.0*np.abs(sub_header['CHAN_BW'])
+        header['nchans'] = sub_header['NCHAN']
+        header['nbits'] =  sub_header['NBITS']
+        header['tsamp'] = sub_header['TBIN']
+        header['nifs'] = sub_header['NPOL']
+        header['totalsm'] = sub_header['NSBLK']*sub_header['NAXIS2']
+        nsampsub = sub_header['NSBLK']
+        nsubints = sub_header['NAXIS2'] 
+        numpolns = sub_header['NPOL']
+        polnorder = sub_header['POL_TYPE']
+    return header
+
 def read_psrfits(psrfits_file, ststart):
     """
     Modified from presto prsfit.py
@@ -270,14 +303,17 @@ def read_psrfits(psrfits_file, ststart):
 def read_file(filen, data_raw, numbits, headsize, countsize, smaple, average, 
             nchan, freqavg, tstart):
     if numbits >= 8:    # BITS NUMBER 8/16/32
-        with open(str(filen),'rb') as fn:
-            fn.seek(headsize)
-            if   numbits == 32:
-                data_raw = np.fromfile(fn, dtype=np.float32, count=countsize)
-            elif numbits == 16:
-                data_raw = np.fromfile(fn, dtype=np.uint16, count=countsize)
-            elif numbits == 8:
-                data_raw = np.fromfile(fn, dtype=np.uint8, count=countsize)
+        # with open(str(filen),'rb') as fn:
+        fn = open(str(filen),'rb')
+        fn.seek(headsize)
+        if   numbits == 32:
+            data_raw = np.fromfile(fn, dtype=np.float32, count=countsize)
+        elif numbits == 16:
+            data_raw = np.fromfile(fn, dtype=np.uint16, count=countsize)
+        elif numbits == 8:
+            data_raw = np.fromfile(fn, dtype=np.uint8, count=countsize)
+        fn.close()
+
         if data_raw.size != countsize:
             print("FILE SIZE ERROR %d / %d  %s Time:%.2f sec"%(data_raw.size, 
                     countsize, filen, (time.time() - tstart)))
@@ -286,9 +322,12 @@ def read_file(filen, data_raw, numbits, headsize, countsize, smaple, average,
         data_raw = data_raw.reshape(smaple, average, nchan, freqavg).mean(axis=(1,3))
     else:               # BITS NUMBER 1/2/4
         numbtch = 8//numbits
-        with open(str(filen),'rb') as fn:
-            fn.seek(headsize)
-            data_raw = np.fromfile(fn, dtype=np.uint8, count=countsize//numbtch)
+        # with open(str(filen),'rb') as fn:
+        fn = open(str(filen),'rb')
+        fn.seek(headsize)
+        data_raw = np.fromfile(fn, dtype=np.uint8, count=countsize//numbtch)
+        fn.close()
+
         if data_raw.size != countsize//numbtch :
             print("FILE SIZE ERROR   %s Time:%.2f sec"%(filen, 
                     (time.time() - tstart)))
