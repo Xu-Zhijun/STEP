@@ -1,5 +1,5 @@
 # STEP (SHAO TransiEnts Pipeline)
-The goal of this **STEP** is to create a TransiEnts Pipeline based on **CSKAP**(**C**hina **SKA** Regional Centre **P**rototype) system.
+The goal of this **STEP** is to create a TransiEnts Pipeline based on **CSRC-P**(**C**hina **SKA** Regional Centre **P**rototype) system.
 
 The pipeline is written in pure python for flexibility.
 
